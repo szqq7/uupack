@@ -1,6 +1,5 @@
 ---
 import { getEmDashEntry } from "emdash";
-import { PortableText } from "emdash/ui";
 import Base from "../../layouts/Base.astro";
 
 const { entry, cacheHint } = await getEmDashEntry("productss", Astro.params.slug);
@@ -12,7 +11,7 @@ const title = data.title || "Product";
 const spu = data.spu || "";
 
 // picture_json
-let pictures: Array<{url: string; alt?: string}> = [];
+let pictures: Array<{url: string}> = [];
 if (data.picture_json) {
   try {
     const raw = typeof data.picture_json === 'string' ? data.picture_json : JSON.stringify(data.picture_json);
@@ -39,133 +38,4 @@ if (data.item_details) {
     if (Array.isArray(parsed)) {
       details = parsed.map((item: any) => ({
         key: item.key || item.label || 'Item',
-        value: item.value || item.text || String(item)
-      }));
-    }
-  } catch {}
-}
----
-
-<Base title={title}>
-  <div class="product-page">
-    <!-- 顶部：左图右标题 -->
-    <div class="product-top">
-      <!-- 左侧图片 -->
-      <div class="product-images">
-        {pictures.length > 0 ? (
-          <div class="main-image">
-            <img src={pictures[0].url || pictures[0].src || pictures[0]} alt={pictures[0].alt || title} />
-          </div>
-        ) : (
-          <div class="main-image placeholder">No Image</div>
-        )}
-        {pictures.length > 1 && (
-          <div class="thumbnail-list">
-            {pictures.slice(1).map((img, i) => (
-              <img src={img.url || img.src || img} alt={img.alt || `${title} ${i + 2}`} class="thumb" />
-            ))}
-          </div>
-        )}
-      </div>
-
-      <!-- 右侧标题信息 -->
-      <div class="product-info">
-        <h1 class="product-title">{title}</h1>
-        {spu && <p class="product-code">Code: {spu}</p>}
-      </div>
-    </div>
-
-    <!-- 下方：Product Details -->
-    <section class="product-section">
-      <h2 class="section-title">Product Details</h2>
-
-      {highlights.length > 0 && (
-        <details class="details-panel" open>
-          <summary>Top Highlights</summary>
-          <div class="panel-content">
-            <ul class="highlight-list">
-              {highlights.map((h: string) => (
-                <li set:html={h.trim().replace(/^[-*]\s*/, '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')} />
-              ))}
-            </ul>
-          </div>
-        </details>
-      )}
-
-      {details.length > 0 && (
-        <details class="details-panel" open>
-          <summary>Item Details</summary>
-          <div class="panel-content">
-            <table class="specs-table">
-              <tbody>
-                {details.map((d) => (
-                  <tr>
-                    <td class="spec-key">{d.key}</td>
-                    <td class="spec-value">{d.value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </details>
-      )}
-    </section>
-  </div>
-</Base>
-
-<style>
-  .product-page { max-width: 1200px; margin: 0 auto; padding: 2rem; }
-  
-  /* 顶部左右布局 */
-  .product-top { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; margin-bottom: 3rem; }
-  
-  /* 左侧图片 */
-  .product-images { display: flex; flex-direction: column; gap: 1rem; }
-  .main-image { 
-    aspect-ratio: 1; 
-    background: #f8f9fa; 
-    border-radius: 8px; 
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .main-image img { width: 100%; height: 100%; object-fit: contain; padding: 1rem; }
-  .main-image.placeholder { color: #999; font-size: 1.2rem; }
-  
-  .thumbnail-list { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-  .thumbnail-list .thumb { width: 60px; height: 60px; object-fit: cover; border-radius: 4px; border: 1px solid #e0e0e0; cursor: pointer; }
-  
-  /* 右侧标题 */
-  .product-info { display: flex; flex-direction: column; justify-content: center; }
-  .product-title { font-size: 1.8rem; font-weight: 700; margin-bottom: 1rem; line-height: 1.3; }
-  .product-code { color: #666; font-size: 1rem; margin: 0; }
-  
-  /* Product Details */
-  .product-section { margin-bottom: 2rem; }
-  .section-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid #333; }
-  
-  .details-panel { margin-bottom: 1rem; border: 1px solid #e0e0e0; border-radius: 6px; overflow: hidden; }
-  .details-panel summary { padding: 1rem 1.25rem; font-weight: 600; cursor: pointer; background: #f8f9fa; list-style: none; }
-  .details-panel summary::before { content: "▼"; margin-right: 0.5rem; font-size: 0.8rem; }
-  .details-panel:not([open]) summary::before { transform: rotate(-90deg); }
-  .panel-content { padding: 1.25rem; background: #fff; }
-  
-  .highlight-list { list-style: none; padding: 0; margin: 0; }
-  .highlight-list li { padding: 0.75rem 0; padding-left: 1.2rem; position: relative; border-bottom: 1px solid #f0f0f0; line-height: 1.6; }
-  .highlight-list li:last-child { border-bottom: none; }
-  .highlight-list li::before { content: "•"; position: absolute; left: 0; color: #666; font-weight: bold; }
-  .highlight-list li :global(strong) { font-weight: 600; color: #333; }
-  
-  .specs-table { width: 100%; border-collapse: collapse; }
-  .specs-table tr { border-bottom: 1px solid #f0f0f0; }
-  .specs-table td { padding: 0.9rem 0; vertical-align: top; }
-  .spec-key { width: 35%; font-weight: 600; color: #555; }
-  .spec-value { width: 65%; color: #222; padding-left: 1rem; }
-  
-  /* 移动端适配 */
-  @media (max-width: 768px) {
-    .product-top { grid-template-columns: 1fr; gap: 1.5rem; }
-    .product-title { font-size: 1.5rem; }
-  }
-</style>
+       

@@ -25,13 +25,19 @@ if (data.top_highlights) {
   }
 }
 
-// 解析 item_details
+// 解析 item_details（容错版，清理多余逗号）
 let details: Array<{key: string; value: string}> = [];
 if (data.item_details) {
   try {
-    const parsed = typeof data.item_details === 'string' 
-      ? JSON.parse(data.item_details) 
-      : data.item_details;
+    let raw = typeof data.item_details === 'string' 
+      ? data.item_details 
+      : JSON.stringify(data.item_details);
+    // 清理 JSON 格式错误：多余逗号
+    raw = raw
+      .replace(/,\s*,/g, ',')      // 连续逗号变单个
+      .replace(/$$\s*,/g, '[')     // [ 后面直接跟逗号
+      .replace(/,\s*$$/g, ']');    // 逗号在 ] 前面
+    const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       details = parsed.map((item: any) => ({
         key: item.key || item.label || item.name || 'Item',
@@ -40,6 +46,7 @@ if (data.item_details) {
     }
   } catch {}
 }
+
 ---
 
 <Base title={title}>

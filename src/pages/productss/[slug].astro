@@ -17,27 +17,90 @@ const SKIP = new Set([
   'published_at', 'featured_image', 'excerpt', 'seo'
 ]);
 
-// 将 JSON 字符串渲染为表格行
-function renderTable(jsonStr: string) {
-  try {
-    const rows = JSON.parse(jsonStr);
-    if (!Array.isArray(rows)) return <pre>{jsonStr}</pre>;
-    return (
-      <table class="details-table">
-        <tbody>
-          {rows.map((row: any, i: number) => (
-            <tr>
-              <td class="detail-label">{row.key || row.label || i + 1}</td>
-              <td class="detail-value">{row.value || String(row)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    );
-  } catch {
-    return <p>{jsonStr}</p>;
-  }
+function formatKey(key: string) {
+  return key.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
 }
+
+function renderValue(key: string, value: any): any {
+  if (value === null || value === undefined || value === '') return null;
+  if (SKIP.has(key)) return null;
+
+  const label = formatKey(key);
+
+  // item_details: JSON 表格
+  if (key === 'item_details' && typeof value === 'string') {
+    try {
+      const rows = JSON.parse(value);
+      if (!Array.isArray(rows)) throw null;
+      return (
+        <section class="field-section">
+          <h2 class="section-title">{label}</h2>
+          <table class="details-table">
+            <tbody>
+              {rows.map((row: any, i: number) => (
+                <tr>
+                  <td class="detail-label">{row.key || row.label || i + 1}</td>
+                  <td class="detail-value">{row.value || String(row)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      );
+    } catch {}
+  }
+
+  // PortableText / RichText
+  if (typeof value === 'object') {
+    return (
+      <section class="field-section">
+        <h2 class="section-title">{label}</h2>
+        <PortableText value={value} />
+      </section>
+    );
+  }
+
+  // JSON 字符串
+  if (typeof value === 'string' && (value.startsWith('[') || value.startsWith('{'))) {
+    try {
+      const parsed = JSON.parse(value);
+      return (
+        <section class="field-section">
+          <h2 class="section-title">{label}</h2>
+          <pre class="json-block">{JSON.stringify(parsed, null, 2)}</pre>
+        </section>
+      );
+    } catch {}
+  }
+
+  // Markdown 文本
+  if (typeof value === 'string') {
+    const html = value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n\n/g, '</p><p>')
+      .replace(/\n/g, '<br/>');
+    return (
+      <section class="field-section">
+        <h2 class="section-title">{label}</h2>
+        <div class="markdown-body" set:html={'<p>' + html + '</p>'} />
+      </section>
+    );
+  }
+
+  return (
+    <div class="field-row">
+      <span class="field-label">{label}: </span>
+      <span class="field-value">{String(value)}</span>
+    </div>
+  );
+}
+
+const fields = Object.entries(data)
+  .filter(([key]) => !SKIP.has(key))
+  .map(([key, value]) => renderValue(key, value))
+  .filter(Boolean);
 ---
 
 <Base title={title}>
@@ -46,76 +109,8 @@ function renderTable(jsonStr: string) {
       <header class="article-header">
         <h1 class="article-title">{title}</h1>
       </header>
-
       <div class="article-content">
-        {Object.entries(data).map(([key, value]) => {
-          if (SKIP.has(key)) return null;
-          if (value === null || value === undefined || value === '') return null;
-
-          const label = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-
-          // item_details: JSON 字符串 → 表格
-          if (key === 'item_details' && typeof value === 'string') {
-            const parsed = renderTable(value);
-            return (
-              <section class="field-section">
-                <h2 class="section-title">{label}</h2>
-                {parsed}
-              </section>
-            );
-          }
-
-          // top_highlights / Markdown 字段 → PortText
-          if (typeof value === 'object' && (value?.type === 'doc' || Array.isArray(value?.content))) {
-            return (
-              <section class="field-section">
-                <h2 class="section-title">{label}</h2>
-                <PortableText value={value} />
-              </section>
-            );
-          }
-
-          // Markdown 纯文本 → HTML
-          if (typeof value === 'string' && (value.includes('**') || value.includes('##'))) {
-            return (
-              <section class="field-section">
-                <h2 class="section-title">{label}</h2>
-                <div class="markdown-body" set:html={value
-                  .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-                  .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-                  .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-                  .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-                  .replace(/\n- (.+)/g, '\n<li>$1</li>')
-                  .replace(/(<li>.+<\/li>\n?)+/g, '<ul>$&</ul>')
-                  .replace(/\n\n/g, '</p><p>')
-                  .replace(/^(?!<[hul])/gm, '<p>')
-                  .replace(/(?!<\/[hul]>)$/gm, '</p>')
-                } />
-              </section>
-            );
-          }
-
-          // JSON 字符串
-          if (typeof value === 'string' && ((value.startsWith('[') && value.endsWith(']')) || (value.startsWith('{') && value.endsWith('}')))) {
-            try {
-              const parsed = JSON.parse(value);
-              return (
-                <section class="field-section">
-                  <h2 class="section-title">{label}</h2>
-                  <pre class="json-block">{JSON.stringify(parsed, null, 2)}</pre>
-                </section>
-              );
-            } catch {}
-          }
-
-          // 普通值
-          return (
-            <div class="field-row">
-              <span class="field-label">{label}: </span>
-              <span class="field-value">{String(value)}</span>
-            </div>
-          );
-        })}
+        {fields}
       </div>
     </div>
   </article>
@@ -129,15 +124,10 @@ function renderTable(jsonStr: string) {
   .field-row { margin-bottom: 0.75rem; }
   .field-label { font-weight: 600; color: #555; }
   .field-value { color: #222; }
-  .markdown-body { line-height: 1.8; }
-  .markdown-body h2 { font-size: 1.5rem; }
-  .markdown-body h3 { font-size: 1.15rem; }
-  .markdown-body strong { font-weight: 600; }
-  .markdown-body ul { padding-left: 1.5rem; }
-  .markdown-body li { margin-bottom: 0.3rem; }
+  .markdown-body p { margin-bottom: 0.8rem; }
   .details-table { width: 100%; border-collapse: collapse; }
   .details-table td { padding: 0.6rem 0.8rem; }
-  .detail-label { font-weight: 600; width: 30%; color: #555; background: #f9f9f9; }
+  .detail-label { font-weight: 600; width: 30%; color: #555; background: #f5f5f5; }
   .detail-value { color: #222; }
   .json-block { background: #f5f5f5; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85rem; }
   .article-content { line-height: 1.6; }

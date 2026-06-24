@@ -9,81 +9,136 @@ if (!entry) return Astro.redirect("/404");
 if (Astro.cache?.enabled) Astro.cache.set(cacheHint);
 
 const data = entry.data || {};
-const { title, slug: productSlug } = data;
+const title = data.title || "Untitled";
 
-// 获取所有字段，排除系统字段
-const systemFields = ['id', 'slug', 'status', 'createdAt', 'updatedAt', 'publishedAt', 'terms', 'bylines'];
+const SKIP = new Set([
+  'title', 'id', 'slug', 'status', 'createdAt', 'updatedAt',
+  'publishedAt', 'terms', 'bylines', 'authorId', 'liveRevisionId',
+  'published_at', 'featured_image', 'excerpt', 'seo'
+]);
+
+// 将 JSON 字符串渲染为表格行
+function renderTable(jsonStr: string) {
+  try {
+    const rows = JSON.parse(jsonStr);
+    if (!Array.isArray(rows)) return <pre>{jsonStr}</pre>;
+    return (
+      <table class="details-table">
+        <tbody>
+          {rows.map((row: any, i: number) => (
+            <tr>
+              <td class="detail-label">{row.key || row.label || i + 1}</td>
+              <td class="detail-value">{row.value || String(row)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  } catch {
+    return <p>{jsonStr}</p>;
+  }
+}
 ---
 
-<Base title={title || "Product"}>
-  <article class="article" style="max-width: 800px; margin: 0 auto; padding: 2rem;">
-    <header class="article-header" style="margin-bottom: 2rem;">
-      <h1 class="article-title">{title}</h1>
-      {productSlug && <p style="color: #666; font-size: 0.9rem;">Slug: {productSlug}</p>}
-    </header>
+<Base title={title}>
+  <article class="article">
+    <div class="article-main">
+      <header class="article-header">
+        <h1 class="article-title">{title}</h1>
+      </header>
 
-    <div class="article-content">
-      {Object.entries(data).map(([key, value]) => {
-        // 跳过系统字段和已显示的字段
-        if (systemFields.includes(key) || key === 'title') return null;
+      <div class="article-content">
+        {Object.entries(data).map(([key, value]) => {
+          if (SKIP.has(key)) return null;
+          if (value === null || value === undefined || value === '') return null;
 
-        // 跳过空值
-        if (value === null || value === undefined || value === '') return null;
+          const label = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
-        // 数组/对象 → JSON 格式化
-        if (typeof value === 'object') {
-          // Markdown/RichText (PortableText 格式)
-          if (value?.type === 'doc' || Array.isArray(value)) {
+          // item_details: JSON 字符串 → 表格
+          if (key === 'item_details' && typeof value === 'string') {
+            const parsed = renderTable(value);
             return (
-              <section style="margin-bottom: 2rem;">
-                <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; text-transform: capitalize;">{key}</h2>
+              <section class="field-section">
+                <h2 class="section-title">{label}</h2>
+                {parsed}
+              </section>
+            );
+          }
+
+          // top_highlights / Markdown 字段 → PortText
+          if (typeof value === 'object' && (value?.type === 'doc' || Array.isArray(value?.content))) {
+            return (
+              <section class="field-section">
+                <h2 class="section-title">{label}</h2>
                 <PortableText value={value} />
               </section>
             );
           }
-          // 普通对象
-          return (
-            <section style="margin-bottom: 2rem;">
-              <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; text-transform: capitalize;">{key}</h2>
-              <pre style="background: #f5f5f5; padding: 1rem; border-radius: 4px; overflow-x: auto;">{JSON.stringify(value, null, 2)}</pre>
-            </section>
-          );
-        }
 
-        // 字符串 → 检查是否是 JSON
-        if (typeof value === 'string') {
-          // 尝试解析 JSON
-          if ((value.startsWith('[') && value.endsWith(']')) || (value.startsWith('{') && value.endsWith('}'))) {
+          // Markdown 纯文本 → HTML
+          if (typeof value === 'string' && (value.includes('**') || value.includes('##'))) {
+            return (
+              <section class="field-section">
+                <h2 class="section-title">{label}</h2>
+                <div class="markdown-body" set:html={value
+                  .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+                  .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+                  .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+                  .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                  .replace(/\n- (.+)/g, '\n<li>$1</li>')
+                  .replace(/(<li>.+<\/li>\n?)+/g, '<ul>$&</ul>')
+                  .replace(/\n\n/g, '</p><p>')
+                  .replace(/^(?!<[hul])/gm, '<p>')
+                  .replace(/(?!<\/[hul]>)$/gm, '</p>')
+                } />
+              </section>
+            );
+          }
+
+          // JSON 字符串
+          if (typeof value === 'string' && ((value.startsWith('[') && value.endsWith(']')) || (value.startsWith('{') && value.endsWith('}')))) {
             try {
               const parsed = JSON.parse(value);
               return (
-                <section style="margin-bottom: 2rem;">
-                  <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; text-transform: capitalize;">{key}</h2>
-                  <pre style="background: #f5f5f5; padding: 1rem; border-radius: 4px; overflow-x: auto;">{JSON.stringify(parsed, null, 2)}</pre>
+                <section class="field-section">
+                  <h2 class="section-title">{label}</h2>
+                  <pre class="json-block">{JSON.stringify(parsed, null, 2)}</pre>
                 </section>
               );
-            } catch {
-              // 不是有效 JSON，按普通文本处理
-            }
+            } catch {}
           }
 
-          // 普通文本
+          // 普通值
           return (
-            <section style="margin-bottom: 2rem;">
-              <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; text-transform: capitalize;">{key}</h2>
-              <p>{value}</p>
-            </section>
+            <div class="field-row">
+              <span class="field-label">{label}: </span>
+              <span class="field-value">{String(value)}</span>
+            </div>
           );
-        }
-
-        // 数字/布尔值
-        return (
-          <section style="margin-bottom: 2rem;">
-            <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; text-transform: capitalize;">{key}</h2>
-            <p>{String(value)}</p>
-          </section>
-        );
-      })}
+        })}
+      </div>
     </div>
   </article>
 </Base>
+
+<style>
+  .article-main { max-width: 900px; }
+  .article-title { font-size: 2.5rem; font-weight: 700; margin-bottom: 1.5rem; }
+  .section-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; color: #333; }
+  .field-section { margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid #eee; }
+  .field-row { margin-bottom: 0.75rem; }
+  .field-label { font-weight: 600; color: #555; }
+  .field-value { color: #222; }
+  .markdown-body { line-height: 1.8; }
+  .markdown-body h2 { font-size: 1.5rem; }
+  .markdown-body h3 { font-size: 1.15rem; }
+  .markdown-body strong { font-weight: 600; }
+  .markdown-body ul { padding-left: 1.5rem; }
+  .markdown-body li { margin-bottom: 0.3rem; }
+  .details-table { width: 100%; border-collapse: collapse; }
+  .details-table td { padding: 0.6rem 0.8rem; }
+  .detail-label { font-weight: 600; width: 30%; color: #555; background: #f9f9f9; }
+  .detail-value { color: #222; }
+  .json-block { background: #f5f5f5; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85rem; }
+  .article-content { line-height: 1.6; }
+</style>

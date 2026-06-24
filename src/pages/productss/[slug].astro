@@ -9,35 +9,36 @@ if (Astro.cache?.enabled) Astro.cache.set(cacheHint);
 
 const data = entry.data || {};
 const title = data.title || "Product";
-const spu = data.spu || data.code || "";
+const spu = data.spu || "";
 
-// 解析 top_highlights
-let highlights: string[] = [];
-if (data.top_highlights) {
-  const text = typeof data.top_highlights === 'string' 
-    ? data.top_highlights 
-    : JSON.stringify(data.top_highlights);
-  highlights = text.split(/\n/).filter((s: string) => s.trim().match(/^[-*]\s/));
-  if (highlights.length === 0 && text.trim()) {
-    highlights = [text];
-  }
+// picture_json
+let pictures: Array<{url: string; alt?: string}> = [];
+if (data.picture_json) {
+  try {
+    const raw = typeof data.picture_json === 'string' ? data.picture_json : JSON.stringify(data.picture_json);
+    const parsed = JSON.parse(raw);
+    pictures = Array.isArray(parsed) ? parsed : [parsed];
+  } catch {}
 }
 
-// 解析 item_details（容错版，清理多余逗号）
+// top_highlights
+let highlights: string[] = [];
+if (data.top_highlights) {
+  const text = typeof data.top_highlights === 'string' ? data.top_highlights : JSON.stringify(data.top_highlights);
+  highlights = text.split(/\n/).filter((s: string) => s.trim().match(/^[-*]\s/));
+  if (highlights.length === 0 && text.trim()) highlights = [text];
+}
+
+// item_details
 let details: Array<{key: string; value: string}> = [];
 if (data.item_details) {
   try {
-    let raw = typeof data.item_details === 'string' 
-      ? data.item_details 
-      : JSON.stringify(data.item_details);
-    raw = raw
-      .replace(/,\s*,/g, ',')
-      .replace(/$$\s*,/g, '[')
-      .replace(/,\s*$$/g, ']');
+    let raw = typeof data.item_details === 'string' ? data.item_details : JSON.stringify(data.item_details);
+    raw = raw.replace(/,\s*,/g, ',').replace(/$$\s*,/g, '[').replace(/,\s*$$/g, ']');
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       details = parsed.map((item: any) => ({
-        key: item.key || item.label || item.name || 'Item',
+        key: item.key || item.label || 'Item',
         value: item.value || item.text || String(item)
       }));
     }
@@ -54,7 +55,19 @@ if (data.item_details) {
 
     <section class="product-section">
       <h2 class="section-title">Product Details</h2>
-      
+
+      <!-- 产品图片 -->
+      {pictures.length > 0 && (
+        <div class="image-gallery">
+          {pictures.map((img, i) => (
+            <div class="image-item">
+              <img src={img.url || img.src || img} alt={img.alt || `${title} ${i + 1}`} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      <!-- Top Highlights -->
       {highlights.length > 0 && (
         <details class="details-panel" open>
           <summary>Top Highlights</summary>
@@ -68,6 +81,7 @@ if (data.item_details) {
         </details>
       )}
 
+      <!-- Item Details -->
       {details.length > 0 && (
         <details class="details-panel" open>
           <summary>Item Details</summary>
@@ -94,21 +108,24 @@ if (data.item_details) {
   .product-header { margin-bottom: 2rem; }
   .product-header h1 { font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; }
   .product-code { color: #666; font-size: 0.95rem; }
-  .product-section { margin-bottom: 2rem; }
   .section-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid #333; }
+
+  .image-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+  .image-item img { width: 100%; height: auto; border-radius: 4px; }
+
   .details-panel { margin-bottom: 1rem; border: 1px solid #e0e0e0; border-radius: 6px; overflow: hidden; }
-  .details-panel summary { padding: 1rem 1.25rem; font-weight: 600; cursor: pointer; background: #f8f9fa; list-style: none; display: flex; align-items: center; }
+  .details-panel summary { padding: 1rem 1.25rem; font-weight: 600; cursor: pointer; background: #f8f9fa; list-style: none; }
   .details-panel summary::before { content: "▼"; margin-right: 0.5rem; font-size: 0.8rem; transition: transform 0.2s; }
   .details-panel:not([open]) summary::before { transform: rotate(-90deg); }
   .panel-content { padding: 1.25rem; background: #fff; }
+
   .highlight-list { list-style: none; padding: 0; margin: 0; }
   .highlight-list li { padding: 0.75rem 0; padding-left: 1.2rem; position: relative; border-bottom: 1px solid #f0f0f0; line-height: 1.6; }
   .highlight-list li:last-child { border-bottom: none; }
   .highlight-list li::before { content: "•"; position: absolute; left: 0; color: #666; font-weight: bold; }
-  .highlight-list li :global(strong) { font-weight: 600; color: #333; }
+
   .specs-table { width: 100%; border-collapse: collapse; }
   .specs-table tr { border-bottom: 1px solid #f0f0f0; }
-  .specs-table tr:last-child { border-bottom: none; }
   .specs-table td { padding: 0.9rem 0; vertical-align: top; }
   .spec-key { width: 35%; font-weight: 600; color: #555; }
   .spec-value { width: 65%; color: #222; padding-left: 1rem; }

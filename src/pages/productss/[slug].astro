@@ -10,8 +10,7 @@ const data = entry.data || {};
 const title = data.title || "Product";
 const spu = data.spu || "";
 
-// picture_json
-let pictures: Array<{url: string}> = [];
+let pictures = [];
 if (data.picture_json) {
   try {
     const raw = typeof data.picture_json === 'string' ? data.picture_json : JSON.stringify(data.picture_json);
@@ -20,22 +19,113 @@ if (data.picture_json) {
   } catch {}
 }
 
-// top_highlights
-let highlights: string[] = [];
+let highlightItems = [];
 if (data.top_highlights) {
-  const text = typeof data.top_highlights === 'string' ? data.top_highlights : JSON.stringify(data.top_highlights);
-  highlights = text.split(/\n/).filter((s: string) => s.trim().match(/^[-*]\s/));
-  if (highlights.length === 0 && text.trim()) highlights = [text];
+  const text = typeof data.top_highlights === 'string' ? data.top_highlights : String(data.top_highlights);
+  const lines = text.split(/\n/).filter((s) => s.trim().match(/^[-*]\s/));
+  const items = lines.length > 0 ? lines : (text.trim() ? [text.trim()] : []);
+  highlightItems = items.map((s) => s.trim().replace(/^[-*]\s*/, ""));
 }
 
-// item_details
-let details: Array<{key: string; value: string}> = [];
+let details = [];
 if (data.item_details) {
   try {
     let raw = typeof data.item_details === 'string' ? data.item_details : JSON.stringify(data.item_details);
-    raw = raw.replace(/,\s*,/g, ',').replace(/$$\s*,/g, '[').replace(/,\s*$$/g, ']');
+    raw = raw.replace(/,\s*,/g, ",").replace(/$$\s*,/g, "[").replace(/,\s*$$/g, "]");
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      details = parsed.map((item: any) => ({
-        key: item.key || item.label || 'Item',
-       
+      details = parsed.map((item) => ({
+        key: item.key || item.label || "Item",
+        value: item.value || item.text || String(item)
+      }));
+    }
+  } catch {}
+}
+
+function boldText(s) {
+  return s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+}
+---
+
+<Base title={title}>
+  <div class="product-page">
+    <div class="product-header-row">
+      <div class="product-image">
+        {pictures.length > 0 ? (
+          <img src={pictures[0].url || pictures[0].src || pictures[0]} alt={title} />
+        ) : (
+          <div class="no-image">No Image</div>
+        )}
+      </div>
+      <div class="product-header">
+        <h1>{title}</h1>
+        {spu && <p class="product-code">Code: {spu}</p>}
+      </div>
+    </div>
+
+    <section class="product-section">
+      <h2 class="section-title">Product Details</h2>
+
+      {highlightItems.length > 0 && (
+        <details class="details-panel" open>
+          <summary>Top Highlights</summary>
+          <div class="panel-content">
+            <ul class="highlight-list">
+              {highlightItems.map((item) => (
+                <li set:html={boldText(item)} />
+              ))}
+            </ul>
+          </div>
+        </details>
+      )}
+
+      {details.length > 0 && (
+        <details class="details-panel" open>
+          <summary>Item Details</summary>
+          <div class="panel-content">
+            <table class="specs-table">
+              <tbody>
+                {details.map((d) => (
+                  <tr>
+                    <td class="spec-key">{d.key}</td>
+                    <td class="spec-value">{d.value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
+    </section>
+  </div>
+</Base>
+
+<style>
+  .product-page { max-width: 900px; margin: 0 auto; padding: 2rem; }
+  .product-header-row { display: flex; gap: 2rem; align-items: flex-start; margin-bottom: 3rem; }
+  .product-image { flex-shrink: 0; width: 300px; aspect-ratio: 1; background: #f8f9fa; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  .product-image img { width: 100%; height: 100%; object-fit: contain; padding: 1rem; }
+  .no-image { color: #999; }
+  .product-header { flex: 1; padding-top: 0.5rem; }
+  .product-header h1 { font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; }
+  .product-code { color: #666; font-size: 0.95rem; }
+  .section-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid #333; }
+  .details-panel { margin-bottom: 1rem; border: 1px solid #e0e0e0; border-radius: 6px; overflow: hidden; }
+  .details-panel summary { padding: 1rem 1.25rem; font-weight: 600; cursor: pointer; background: #f8f9fa; list-style: none; }
+  .details-panel summary::before { content: "▼"; margin-right: 0.5rem; font-size: 0.8rem; }
+  .details-panel:not([open]) summary::before { transform: rotate(-90deg); }
+  .panel-content { padding: 1.25rem; background: #fff; }
+  .highlight-list { list-style: none; padding: 0; margin: 0; }
+  .highlight-list li { padding: 0.75rem 0; padding-left: 1.2rem; position: relative; border-bottom: 1px solid #f0f0f0; line-height: 1.6; }
+  .highlight-list li:last-child { border-bottom: none; }
+  .highlight-list li::before { content: "•"; position: absolute; left: 0; color: #666; font-weight: bold; }
+  .specs-table { width: 100%; border-collapse: collapse; }
+  .specs-table tr { border-bottom: 1px solid #f0f0f0; }
+  .specs-table td { padding: 0.9rem 0; vertical-align: top; }
+  .spec-key { width: 35%; font-weight: 600; color: #555; }
+  .spec-value { width: 65%; color: #222; padding-left: 1rem; }
+  @media (max-width: 700px) {
+    .product-header-row { flex-direction: column; }
+    .product-image { width: 100%; }
+  }
+</style>

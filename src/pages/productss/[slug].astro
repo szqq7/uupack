@@ -17,90 +17,45 @@ const SKIP = new Set([
   'published_at', 'featured_image', 'excerpt', 'seo'
 ]);
 
-function formatKey(key: string) {
-  return key.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+interface Field {
+  key: string;
+  label: string;
+  type: 'table' | 'portable' | 'json' | 'text' | 'plain';
+  value: any;
 }
 
-function renderValue(key: string, value: any): any {
-  if (value === null || value === undefined || value === '') return null;
-  if (SKIP.has(key)) return null;
+const fields: Field[] = [];
 
-  const label = formatKey(key);
-
-  // item_details: JSON 表格
+for (const [key, value] of Object.entries(data)) {
+  if (SKIP.has(key)) continue;
+  if (value === null || value === undefined || value === '') continue;
+  
+  const label = key.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+  
   if (key === 'item_details' && typeof value === 'string') {
     try {
       const rows = JSON.parse(value);
-      if (!Array.isArray(rows)) throw null;
-      return (
-        <section class="field-section">
-          <h2 class="section-title">{label}</h2>
-          <table class="details-table">
-            <tbody>
-              {rows.map((row: any, i: number) => (
-                <tr>
-                  <td class="detail-label">{row.key || row.label || i + 1}</td>
-                  <td class="detail-value">{row.value || String(row)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      );
+      if (Array.isArray(rows)) {
+        fields.push({ key, label, type: 'table', value: rows });
+        continue;
+      }
     } catch {}
   }
-
-  // PortableText / RichText
+  
   if (typeof value === 'object') {
-    return (
-      <section class="field-section">
-        <h2 class="section-title">{label}</h2>
-        <PortableText value={value} />
-      </section>
-    );
+    fields.push({ key, label, type: 'portable', value });
+    continue;
   }
-
-  // JSON 字符串
+  
   if (typeof value === 'string' && (value.startsWith('[') || value.startsWith('{'))) {
     try {
-      const parsed = JSON.parse(value);
-      return (
-        <section class="field-section">
-          <h2 class="section-title">{label}</h2>
-          <pre class="json-block">{JSON.stringify(parsed, null, 2)}</pre>
-        </section>
-      );
+      fields.push({ key, label, type: 'json', value: JSON.parse(value) });
+      continue;
     } catch {}
   }
-
-  // Markdown 文本
-  if (typeof value === 'string') {
-    const html = value
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/\n\n/g, '</p><p>')
-      .replace(/\n/g, '<br/>');
-    return (
-      <section class="field-section">
-        <h2 class="section-title">{label}</h2>
-        <div class="markdown-body" set:html={'<p>' + html + '</p>'} />
-      </section>
-    );
-  }
-
-  return (
-    <div class="field-row">
-      <span class="field-label">{label}: </span>
-      <span class="field-value">{String(value)}</span>
-    </div>
-  );
+  
+  fields.push({ key, label, type: 'text', value: String(value) });
 }
-
-const fields = Object.entries(data)
-  .filter(([key]) => !SKIP.has(key))
-  .map(([key, value]) => renderValue(key, value))
-  .filter(Boolean);
 ---
 
 <Base title={title}>
@@ -110,25 +65,53 @@ const fields = Object.entries(data)
         <h1 class="article-title">{title}</h1>
       </header>
       <div class="article-content">
-        {fields}
+        {fields.map((f) => {
+          if (f.type === 'table') return (
+            <section class="field-section">
+              <h2>{f.label}</h2>
+              <table class="data-table">
+                <tbody>
+                  {f.value.map((r: any, i: number) => (
+                    <tr>
+                      <td class="tc1">{r.key || r.label || i + 1}</td>
+                      <td class="tc2">{r.value || String(r)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          );
+          if (f.type === 'portable') return (
+            <section class="field-section">
+              <h2>{f.label}</h2>
+              <PortableText value={f.value} />
+            </section>
+          );
+          if (f.type === 'json') return (
+            <section class="field-section">
+              <h2>{f.label}</h2>
+              <pre class="json-box">{JSON.stringify(f.value, null, 2)}</pre>
+            </section>
+          );
+          return (
+            <section class="field-section">
+              <h2>{f.label}</h2>
+              <p>{f.value}</p>
+            </section>
+          );
+        })}
       </div>
     </div>
   </article>
 </Base>
 
 <style>
-  .article-main { max-width: 900px; }
   .article-title { font-size: 2.5rem; font-weight: 700; margin-bottom: 1.5rem; }
-  .section-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; color: #333; }
   .field-section { margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid #eee; }
-  .field-row { margin-bottom: 0.75rem; }
-  .field-label { font-weight: 600; color: #555; }
-  .field-value { color: #222; }
-  .markdown-body p { margin-bottom: 0.8rem; }
-  .details-table { width: 100%; border-collapse: collapse; }
-  .details-table td { padding: 0.6rem 0.8rem; }
-  .detail-label { font-weight: 600; width: 30%; color: #555; background: #f5f5f5; }
-  .detail-value { color: #222; }
-  .json-block { background: #f5f5f5; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85rem; }
-  .article-content { line-height: 1.6; }
+  .field-section h2 { font-size: 1.2rem; font-weight: 600; margin-bottom: 0.8rem; color: #333; }
+  .data-table { width: 100%; border-collapse: collapse; }
+  .data-table td { padding: 0.6rem 0.8rem; border-bottom: 1px solid #f0f0f0; }
+  .tc1 { font-weight: 600; width: 30%; color: #555; background: #f9f9f9; }
+  .tc2 { color: #222; }
+  .json-box { background: #f5f5f5; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85rem; }
 </style>

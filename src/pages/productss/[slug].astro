@@ -1,12 +1,43 @@
 ---
-import Layout from '../../layouts/Layout.astro';
+import { getEmDashEntry } from "emdash";
+import { PortableText } from "emdash/ui";
+import Base from "../../layouts/Base.astro";
 
-const slug = Astro.params.slug;
+const { entry, cacheHint } = await getEmDashEntry("productss", Astro.params.slug);
+
+if (!entry) return Astro.redirect("/404");
+if (Astro.cache?.enabled) Astro.cache.set(cacheHint);
+
+const data = entry.data || {};
+const { title, spu, topHighlights, itemDetails } = data;
 ---
 
-<Layout title={slug}>
-  <article class="product-page">
-    <h1>Product: {slug}</h1>
-    <p>This is the product page for <strong>{slug}</strong>.</p>
+<Base title={title || "Product"}>
+  <article class="article">
+    <div class="article-main">
+      <header class="article-header">
+        <h1 class="article-title">{title}</h1>
+      </header>
+
+      {spu && (
+        <div class="article-content">
+          <p><strong>Code:</strong> {spu}</p>
+        </div>
+      )}
+
+      {itemDetails && (
+        <div class="article-content">
+          <h2>Item Details</h2>
+          <pre>{typeof itemDetails === 'string' ? itemDetails : JSON.stringify(itemDetails, null, 2)}</pre>
+        </div>
+      )}
+
+      {topHighlights && typeof topHighlights === 'object' && (
+        <div class="article-content">
+          <h2>Top Highlights</h2>
+          <PortableText value={topHighlights} />
+        </div>
+      )}
+    </div>
   </article>
-</Layout>
+</Base>

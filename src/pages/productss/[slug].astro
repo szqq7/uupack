@@ -1,0 +1,16 @@
+---
+import Layout from '../../layouts/Layout.astro';
+
+export async function getStaticPaths() {
+  const entries = await fetch(`${import.meta.env.PUBLIC_EMDASH_API_URL}/content/productss`, {
+    headers: { Authorization: `Bearer ${import.meta.env.EMDASH_API_TOKEN}` }
+  }).then(r => r.json());
+
+  return entries.map(entry => ({
+    params: { slug: entry.slug || entry.id },
+    props: { entry }
+  }));
+}
+
+const { entry } = Astro.props;
+const data = entry.data || {};

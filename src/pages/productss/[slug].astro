@@ -11,19 +11,21 @@ const data = entry.data || {};
 const title = data.title || "Product";
 const spu = data.spu || data.code || "";
 
-// 解析 top_highlights (Markdown 文本)
+// 解析 top_highlights
 let highlights: string[] = [];
 if (data.top_highlights) {
   const text = typeof data.top_highlights === 'string' 
     ? data.top_highlights 
     : JSON.stringify(data.top_highlights);
-  highlights = text.split(/\n/).filter((s: string) => s.trim().startsWith('-') || s.trim().startsWith('*'));
-  if (highlights.length === 0 && text.includes('**')) {
+  // 按行分割，找以 - 或 * 开头的
+  highlights = text.split(/\n/).filter((s: string) => s.trim().match(/^[-*]\s/));
+  // 如果没找到列表格式但内容存在，整个作为一条
+  if (highlights.length === 0 && text.trim()) {
     highlights = [text];
   }
 }
 
-// 解析 item_details (JSON 数组 → 表格)
+// 解析 item_details
 let details: Array<{key: string; value: string}> = [];
 if (data.item_details) {
   try {
@@ -48,87 +50,112 @@ if (data.item_details) {
       {spu && <p class="product-code">Code: {spu}</p>}
     </header>
 
-    <!-- Product Details 折叠区 -->
+    <!-- Product Details 章节标题 -->
     <section class="product-section">
-      <details open>
-        <summary>Product Details</summary>
-        <div class="section-content">
-          
-          <!-- Top Highlights -->
-          {highlights.length > 0 && (
-            <div class="subsection">
-              <h3>Top Highlights</h3>
-              <ul class="highlight-list">
-                {highlights.map((h: string) => (
-                  <li set:html={h.replace(/^[-*]\s*/, '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')} />
+      <h2 class="section-title">Product Details</h2>
+      
+      <!-- Top Highlights 折叠面板 -->
+      {highlights.length > 0 && (
+        <details class="details-panel" open>
+          <summary>Top Highlights</summary>
+          <div class="panel-content">
+            <ul class="highlight-list">
+              {highlights.map((h: string) => (
+                <li set:html={h.trim().replace(/^[-*]\s*/, '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')} />
+              ))}
+            </ul>
+          </div>
+        </details>
+      )}
+
+      <!-- Item Details 折叠面板 -->
+      {details.length > 0 && (
+        <details class="details-panel" open>
+          <summary>Item Details</summary>
+          <div class="panel-content">
+            <table class="specs-table">
+              <tbody>
+                {details.map((d) => (
+                  <tr>
+                    <td class="spec-key">{d.key}</td>
+                    <td class="spec-value">{d.value}</td>
+                  </tr>
                 ))}
-              </ul>
-            </div>
-          )}
-
-          <!-- Item Details 表格 -->
-          {details.length > 0 && (
-            <div class="subsection">
-              <h3>Item Details</h3>
-              <table class="specs-table">
-                <tbody>
-                  {details.map((d) => (
-                    <tr>
-                      <td class="spec-key">{d.key}</td>
-                      <td class="spec-value">{d.value}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-        </div>
-      </details>
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
     </section>
 
   </div>
 </Base>
 
 <style>
-  .product-page { max-width: 800px; margin: 0 auto; padding: 2rem; }
+  .product-page { max-width: 900px; margin: 0 auto; padding: 2rem; }
+  
   .product-header { margin-bottom: 2rem; }
   .product-header h1 { font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; }
   .product-code { color: #666; font-size: 0.95rem; }
   
-  .product-section { margin-bottom: 1.5rem; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
-  details { background: #fff; }
-  summary { 
-    padding: 1rem 1.5rem; 
+  .product-section { margin-bottom: 2rem; }
+  .section-title { 
+    font-size: 1.25rem; 
     font-weight: 600; 
-    font-size: 1.1rem;
+    margin-bottom: 1rem; 
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #333;
+  }
+  
+  .details-panel { 
+    margin-bottom: 1rem; 
+    border: 1px solid #e0e0e0; 
+    border-radius: 6px; 
+    overflow: hidden;
+  }
+  .details-panel summary { 
+    padding: 1rem 1.25rem; 
+    font-weight: 600; 
     cursor: pointer;
     background: #f8f9fa;
-    border-bottom: 1px solid #e0e0e0;
     list-style: none;
+    display: flex;
+    align-items: center;
   }
-  summary::before { content: "▶ "; font-size: 0.8rem; }
-  details[open] summary::before { content: "▼ "; }
+  .details-panel summary::before { 
+    content: "▼"; 
+    margin-right: 0.5rem;
+    font-size: 0.8rem;
+    transition: transform 0.2s;
+  }
+  .details-panel:not([open]) summary::before { 
+    transform: rotate(-90deg); 
+  }
   
-  .section-content { padding: 1.5rem; }
-  .subsection { margin-bottom: 2rem; }
-  .subsection:last-child { margin-bottom: 0; }
-  .subsection h3 { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; color: #333; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; }
+  .panel-content { padding: 1.25rem; background: #fff; }
   
-  .highlight-list { list-style: none; padding: 0; }
+  .highlight-list { list-style: none; padding: 0; margin: 0; }
   .highlight-list li { 
-    padding: 0.6rem 0; 
+    padding: 0.75rem 0; 
     padding-left: 1.2rem; 
     position: relative;
-    border-bottom: 1px solid #f5f5f5;
+    border-bottom: 1px solid #f0f0f0;
+    line-height: 1.6;
   }
-  .highlight-list li::before { content: "•"; position: absolute; left: 0; color: #666; }
-  .highlight-list li :global(strong) { font-weight: 600; }
+  .highlight-list li:last-child { border-bottom: none; }
+  .highlight-list li::before { 
+    content: "•"; 
+    position: absolute; 
+    left: 0; 
+    color: #666;
+    font-weight: bold;
+  }
+  .highlight-list li :global(strong) { font-weight: 600; color: #333; }
   
   .specs-table { width: 100%; border-collapse: collapse; }
   .specs-table tr { border-bottom: 1px solid #f0f0f0; }
   .specs-table tr:last-child { border-bottom: none; }
-  .specs-table td { padding: 0.8rem 0; vertical-align: top; }
+  .specs-table td { padding: 0.9rem 0; vertical-align: top; }
   .spec-key { width: 35%; font-weight: 600; color: #555; }
   .spec-value { width: 65%; color: #222; padding-left: 1rem; }
 </style>

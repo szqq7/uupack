@@ -9,35 +9,81 @@ if (!entry) return Astro.redirect("/404");
 if (Astro.cache?.enabled) Astro.cache.set(cacheHint);
 
 const data = entry.data || {};
-const { title, spu, topHighlights, itemDetails } = data;
+const { title, slug: productSlug } = data;
+
+// 获取所有字段，排除系统字段
+const systemFields = ['id', 'slug', 'status', 'createdAt', 'updatedAt', 'publishedAt', 'terms', 'bylines'];
 ---
 
 <Base title={title || "Product"}>
-  <article class="article">
-    <div class="article-main">
-      <header class="article-header">
-        <h1 class="article-title">{title}</h1>
-      </header>
+  <article class="article" style="max-width: 800px; margin: 0 auto; padding: 2rem;">
+    <header class="article-header" style="margin-bottom: 2rem;">
+      <h1 class="article-title">{title}</h1>
+      {productSlug && <p style="color: #666; font-size: 0.9rem;">Slug: {productSlug}</p>}
+    </header>
 
-      {spu && (
-        <div class="article-content">
-          <p><strong>Code:</strong> {spu}</p>
-        </div>
-      )}
+    <div class="article-content">
+      {Object.entries(data).map(([key, value]) => {
+        // 跳过系统字段和已显示的字段
+        if (systemFields.includes(key) || key === 'title') return null;
 
-      {itemDetails && (
-        <div class="article-content">
-          <h2>Item Details</h2>
-          <pre>{typeof itemDetails === 'string' ? itemDetails : JSON.stringify(itemDetails, null, 2)}</pre>
-        </div>
-      )}
+        // 跳过空值
+        if (value === null || value === undefined || value === '') return null;
 
-      {topHighlights && typeof topHighlights === 'object' && (
-        <div class="article-content">
-          <h2>Top Highlights</h2>
-          <PortableText value={topHighlights} />
-        </div>
-      )}
+        // 数组/对象 → JSON 格式化
+        if (typeof value === 'object') {
+          // Markdown/RichText (PortableText 格式)
+          if (value?.type === 'doc' || Array.isArray(value)) {
+            return (
+              <section style="margin-bottom: 2rem;">
+                <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; text-transform: capitalize;">{key}</h2>
+                <PortableText value={value} />
+              </section>
+            );
+          }
+          // 普通对象
+          return (
+            <section style="margin-bottom: 2rem;">
+              <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; text-transform: capitalize;">{key}</h2>
+              <pre style="background: #f5f5f5; padding: 1rem; border-radius: 4px; overflow-x: auto;">{JSON.stringify(value, null, 2)}</pre>
+            </section>
+          );
+        }
+
+        // 字符串 → 检查是否是 JSON
+        if (typeof value === 'string') {
+          // 尝试解析 JSON
+          if ((value.startsWith('[') && value.endsWith(']')) || (value.startsWith('{') && value.endsWith('}'))) {
+            try {
+              const parsed = JSON.parse(value);
+              return (
+                <section style="margin-bottom: 2rem;">
+                  <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; text-transform: capitalize;">{key}</h2>
+                  <pre style="background: #f5f5f5; padding: 1rem; border-radius: 4px; overflow-x: auto;">{JSON.stringify(parsed, null, 2)}</pre>
+                </section>
+              );
+            } catch {
+              // 不是有效 JSON，按普通文本处理
+            }
+          }
+
+          // 普通文本
+          return (
+            <section style="margin-bottom: 2rem;">
+              <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; text-transform: capitalize;">{key}</h2>
+              <p>{value}</p>
+            </section>
+          );
+        }
+
+        // 数字/布尔值
+        return (
+          <section style="margin-bottom: 2rem;">
+            <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; text-transform: capitalize;">{key}</h2>
+            <p>{String(value)}</p>
+          </section>
+        );
+      })}
     </div>
   </article>
 </Base>

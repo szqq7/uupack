@@ -17,9 +17,7 @@ if (data.top_highlights) {
   const text = typeof data.top_highlights === 'string' 
     ? data.top_highlights 
     : JSON.stringify(data.top_highlights);
-  // 按行分割，找以 - 或 * 开头的
   highlights = text.split(/\n/).filter((s: string) => s.trim().match(/^[-*]\s/));
-  // 如果没找到列表格式但内容存在，整个作为一条
   if (highlights.length === 0 && text.trim()) {
     highlights = [text];
   }
@@ -32,11 +30,10 @@ if (data.item_details) {
     let raw = typeof data.item_details === 'string' 
       ? data.item_details 
       : JSON.stringify(data.item_details);
-    // 清理 JSON 格式错误：多余逗号
     raw = raw
-      .replace(/,\s*,/g, ',')      // 连续逗号变单个
-      .replace(/$$\s*,/g, '[')     // [ 后面直接跟逗号
-      .replace(/,\s*$$/g, ']');    // 逗号在 ] 前面
+      .replace(/,\s*,/g, ',')
+      .replace(/$$\s*,/g, '[')
+      .replace(/,\s*$$/g, ']');
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       details = parsed.map((item: any) => ({
@@ -46,22 +43,18 @@ if (data.item_details) {
     }
   } catch {}
 }
-
 ---
 
 <Base title={title}>
   <div class="product-page">
-    <!-- 标题区 -->
     <header class="product-header">
       <h1>{title}</h1>
       {spu && <p class="product-code">Code: {spu}</p>}
     </header>
 
-    <!-- Product Details 章节标题 -->
     <section class="product-section">
       <h2 class="section-title">Product Details</h2>
       
-      <!-- Top Highlights 折叠面板 -->
       {highlights.length > 0 && (
         <details class="details-panel" open>
           <summary>Top Highlights</summary>
@@ -75,7 +68,6 @@ if (data.item_details) {
         </details>
       )}
 
-      <!-- Item Details 折叠面板 -->
       {details.length > 0 && (
         <details class="details-panel" open>
           <summary>Item Details</summary>
@@ -94,71 +86,26 @@ if (data.item_details) {
         </details>
       )}
     </section>
-
   </div>
 </Base>
 
 <style>
   .product-page { max-width: 900px; margin: 0 auto; padding: 2rem; }
-  
   .product-header { margin-bottom: 2rem; }
   .product-header h1 { font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; }
   .product-code { color: #666; font-size: 0.95rem; }
-  
   .product-section { margin-bottom: 2rem; }
-  .section-title { 
-    font-size: 1.25rem; 
-    font-weight: 600; 
-    margin-bottom: 1rem; 
-    padding-bottom: 0.5rem;
-    border-bottom: 2px solid #333;
-  }
-  
-  .details-panel { 
-    margin-bottom: 1rem; 
-    border: 1px solid #e0e0e0; 
-    border-radius: 6px; 
-    overflow: hidden;
-  }
-  .details-panel summary { 
-    padding: 1rem 1.25rem; 
-    font-weight: 600; 
-    cursor: pointer;
-    background: #f8f9fa;
-    list-style: none;
-    display: flex;
-    align-items: center;
-  }
-  .details-panel summary::before { 
-    content: "▼"; 
-    margin-right: 0.5rem;
-    font-size: 0.8rem;
-    transition: transform 0.2s;
-  }
-  .details-panel:not([open]) summary::before { 
-    transform: rotate(-90deg); 
-  }
-  
+  .section-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid #333; }
+  .details-panel { margin-bottom: 1rem; border: 1px solid #e0e0e0; border-radius: 6px; overflow: hidden; }
+  .details-panel summary { padding: 1rem 1.25rem; font-weight: 600; cursor: pointer; background: #f8f9fa; list-style: none; display: flex; align-items: center; }
+  .details-panel summary::before { content: "▼"; margin-right: 0.5rem; font-size: 0.8rem; transition: transform 0.2s; }
+  .details-panel:not([open]) summary::before { transform: rotate(-90deg); }
   .panel-content { padding: 1.25rem; background: #fff; }
-  
   .highlight-list { list-style: none; padding: 0; margin: 0; }
-  .highlight-list li { 
-    padding: 0.75rem 0; 
-    padding-left: 1.2rem; 
-    position: relative;
-    border-bottom: 1px solid #f0f0f0;
-    line-height: 1.6;
-  }
+  .highlight-list li { padding: 0.75rem 0; padding-left: 1.2rem; position: relative; border-bottom: 1px solid #f0f0f0; line-height: 1.6; }
   .highlight-list li:last-child { border-bottom: none; }
-  .highlight-list li::before { 
-    content: "•"; 
-    position: absolute; 
-    left: 0; 
-    color: #666;
-    font-weight: bold;
-  }
+  .highlight-list li::before { content: "•"; position: absolute; left: 0; color: #666; font-weight: bold; }
   .highlight-list li :global(strong) { font-weight: 600; color: #333; }
-  
   .specs-table { width: 100%; border-collapse: collapse; }
   .specs-table tr { border-bottom: 1px solid #f0f0f0; }
   .specs-table tr:last-child { border-bottom: none; }

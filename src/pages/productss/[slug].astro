@@ -4,114 +4,131 @@ import { PortableText } from "emdash/ui";
 import Base from "../../layouts/Base.astro";
 
 const { entry, cacheHint } = await getEmDashEntry("productss", Astro.params.slug);
-
 if (!entry) return Astro.redirect("/404");
 if (Astro.cache?.enabled) Astro.cache.set(cacheHint);
 
 const data = entry.data || {};
-const title = data.title || "Untitled";
+const title = data.title || "Product";
+const spu = data.spu || data.code || "";
 
-const SKIP = new Set([
-  'title', 'id', 'slug', 'status', 'createdAt', 'updatedAt',
-  'publishedAt', 'terms', 'bylines', 'authorId', 'liveRevisionId',
-  'published_at', 'featured_image', 'excerpt', 'seo'
-]);
-
-interface Field {
-  key: string;
-  label: string;
-  type: 'table' | 'portable' | 'json' | 'text' | 'plain';
-  value: any;
+// 解析 top_highlights (Markdown 文本)
+let highlights: string[] = [];
+if (data.top_highlights) {
+  const text = typeof data.top_highlights === 'string' 
+    ? data.top_highlights 
+    : JSON.stringify(data.top_highlights);
+  highlights = text.split(/\n/).filter((s: string) => s.trim().startsWith('-') || s.trim().startsWith('*'));
+  if (highlights.length === 0 && text.includes('**')) {
+    highlights = [text];
+  }
 }
 
-const fields: Field[] = [];
-
-for (const [key, value] of Object.entries(data)) {
-  if (SKIP.has(key)) continue;
-  if (value === null || value === undefined || value === '') continue;
-  
-  const label = key.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
-  
-  if (key === 'item_details' && typeof value === 'string') {
-    try {
-      const rows = JSON.parse(value);
-      if (Array.isArray(rows)) {
-        fields.push({ key, label, type: 'table', value: rows });
-        continue;
-      }
-    } catch {}
-  }
-  
-  if (typeof value === 'object') {
-    fields.push({ key, label, type: 'portable', value });
-    continue;
-  }
-  
-  if (typeof value === 'string' && (value.startsWith('[') || value.startsWith('{'))) {
-    try {
-      fields.push({ key, label, type: 'json', value: JSON.parse(value) });
-      continue;
-    } catch {}
-  }
-  
-  fields.push({ key, label, type: 'text', value: String(value) });
+// 解析 item_details (JSON 数组 → 表格)
+let details: Array<{key: string; value: string}> = [];
+if (data.item_details) {
+  try {
+    const parsed = typeof data.item_details === 'string' 
+      ? JSON.parse(data.item_details) 
+      : data.item_details;
+    if (Array.isArray(parsed)) {
+      details = parsed.map((item: any) => ({
+        key: item.key || item.label || item.name || 'Item',
+        value: item.value || item.text || String(item)
+      }));
+    }
+  } catch {}
 }
 ---
 
 <Base title={title}>
-  <article class="article">
-    <div class="article-main">
-      <header class="article-header">
-        <h1 class="article-title">{title}</h1>
-      </header>
-      <div class="article-content">
-        {fields.map((f) => {
-          if (f.type === 'table') return (
-            <section class="field-section">
-              <h2>{f.label}</h2>
-              <table class="data-table">
+  <div class="product-page">
+    <!-- 标题区 -->
+    <header class="product-header">
+      <h1>{title}</h1>
+      {spu && <p class="product-code">Code: {spu}</p>}
+    </header>
+
+    <!-- Product Details 折叠区 -->
+    <section class="product-section">
+      <details open>
+        <summary>Product Details</summary>
+        <div class="section-content">
+          
+          <!-- Top Highlights -->
+          {highlights.length > 0 && (
+            <div class="subsection">
+              <h3>Top Highlights</h3>
+              <ul class="highlight-list">
+                {highlights.map((h: string) => (
+                  <li set:html={h.replace(/^[-*]\s*/, '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')} />
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <!-- Item Details 表格 -->
+          {details.length > 0 && (
+            <div class="subsection">
+              <h3>Item Details</h3>
+              <table class="specs-table">
                 <tbody>
-                  {f.value.map((r: any, i: number) => (
+                  {details.map((d) => (
                     <tr>
-                      <td class="tc1">{r.key || r.label || i + 1}</td>
-                      <td class="tc2">{r.value || String(r)}</td>
+                      <td class="spec-key">{d.key}</td>
+                      <td class="spec-value">{d.value}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </section>
-          );
-          if (f.type === 'portable') return (
-            <section class="field-section">
-              <h2>{f.label}</h2>
-              <PortableText value={f.value} />
-            </section>
-          );
-          if (f.type === 'json') return (
-            <section class="field-section">
-              <h2>{f.label}</h2>
-              <pre class="json-box">{JSON.stringify(f.value, null, 2)}</pre>
-            </section>
-          );
-          return (
-            <section class="field-section">
-              <h2>{f.label}</h2>
-              <p>{f.value}</p>
-            </section>
-          );
-        })}
-      </div>
-    </div>
-  </article>
+            </div>
+          )}
+
+        </div>
+      </details>
+    </section>
+
+  </div>
 </Base>
 
 <style>
-  .article-title { font-size: 2.5rem; font-weight: 700; margin-bottom: 1.5rem; }
-  .field-section { margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid #eee; }
-  .field-section h2 { font-size: 1.2rem; font-weight: 600; margin-bottom: 0.8rem; color: #333; }
-  .data-table { width: 100%; border-collapse: collapse; }
-  .data-table td { padding: 0.6rem 0.8rem; border-bottom: 1px solid #f0f0f0; }
-  .tc1 { font-weight: 600; width: 30%; color: #555; background: #f9f9f9; }
-  .tc2 { color: #222; }
-  .json-box { background: #f5f5f5; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85rem; }
+  .product-page { max-width: 800px; margin: 0 auto; padding: 2rem; }
+  .product-header { margin-bottom: 2rem; }
+  .product-header h1 { font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; }
+  .product-code { color: #666; font-size: 0.95rem; }
+  
+  .product-section { margin-bottom: 1.5rem; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
+  details { background: #fff; }
+  summary { 
+    padding: 1rem 1.5rem; 
+    font-weight: 600; 
+    font-size: 1.1rem;
+    cursor: pointer;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e0e0e0;
+    list-style: none;
+  }
+  summary::before { content: "▶ "; font-size: 0.8rem; }
+  details[open] summary::before { content: "▼ "; }
+  
+  .section-content { padding: 1.5rem; }
+  .subsection { margin-bottom: 2rem; }
+  .subsection:last-child { margin-bottom: 0; }
+  .subsection h3 { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; color: #333; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; }
+  
+  .highlight-list { list-style: none; padding: 0; }
+  .highlight-list li { 
+    padding: 0.6rem 0; 
+    padding-left: 1.2rem; 
+    position: relative;
+    border-bottom: 1px solid #f5f5f5;
+  }
+  .highlight-list li::before { content: "•"; position: absolute; left: 0; color: #666; }
+  .highlight-list li :global(strong) { font-weight: 600; }
+  
+  .specs-table { width: 100%; border-collapse: collapse; }
+  .specs-table tr { border-bottom: 1px solid #f0f0f0; }
+  .specs-table tr:last-child { border-bottom: none; }
+  .specs-table td { padding: 0.8rem 0; vertical-align: top; }
+  .spec-key { width: 35%; font-weight: 600; color: #555; }
+  .spec-value { width: 65%; color: #222; padding-left: 1rem; }
 </style>

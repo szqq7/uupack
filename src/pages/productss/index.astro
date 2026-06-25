@@ -4,7 +4,6 @@ import Base from "../../layouts/Base.astro";
 
 const { entries } = await getEmDashCollection("productss");
 
-// 每个有子类的节点单独做一个列表
 const categoryTree = [
   {
     slug: "company-news",
@@ -33,25 +32,29 @@ const categoryTree = [
   }
 ];
 
-// 递归收集所有可勾选的分类
-function collectCheckableItems(tree) {
-  const items = [];
+// 递归收集所有有子类的节点（每个独立做一个列表）
+function collectSections(tree) {
+  const sections = [];
   tree.forEach(node => {
     if (node.children && node.children.length > 0) {
-      // 有子类，子类作为复选框
-      items.push({
-        slug: node.slug,
-        name: node.name,
-        children: node.children.map(c => c.slug)
-      });
-      // 递归
-      items.push(...collectCheckableItems(node.children));
+      sections.push({ slug: node.slug, name: node.name, children: node.children.map(c => c.slug) });
+      sections.push(...collectSections(node.children));
     }
   });
-  return items;
+  return sections;
 }
+const categorySections = collectSections(categoryTree);
 
-const checkableSections = collectCheckableItems(categoryTree);
+// 扁平收集所有节点名（用于 slug → name 映射）
+function flattenNames(tree) {
+  const map = new Map();
+  tree.forEach(n => {
+    map.set(n.slug, n.name);
+    if (n.children) flattenNames(n.children).forEach((v, k) => map.set(k, v));
+  });
+  return map;
+}
+const slugNames = flattenNames(categoryTree);
 
 // 统计每个分类的产品数量
 const categoryCounts = new Map();
@@ -89,9 +92,13 @@ function isActive(slug) { return selectedCategories.includes(slug); }
 ---
 
 <Base title="Products">
+  <!-- 调试：查看实际 slug -->
+  <div style="background:#ff0;padding:8px 12px;font-size:12px;font-family:monospace;line-height:1.6;">
+    Actual slugs from products: {JSON.stringify(Array.from(categoryCounts.keys()))}
+  </div>
+
   <div class="products-page">
     <aside class="filter-sidebar">
-      <!-- All Products -->
       <div class="filter-section all-products-section">
         <a href="/productss" class={`filter-item all-products ${selectedCategories.length === 0 ? 'active' : ''}`}>
           <input type="checkbox" checked={selectedCategories.length === 0} />
@@ -99,20 +106,17 @@ function isActive(slug) { return selectedCategories.includes(slug); }
         </a>
       </div>
 
-      <!-- 递归生成的分类列表 -->
-      {checkableSections.map(section => (
+      {categorySections.map(section => (
         <div class="category-block">
           <span class="section-title">{section.name}</span>
           <div class="section-items">
             {section.children.map(childSlug => {
-              const child = categoryTree.find(c => c.slug === childSlug)
-                || categoryTree.flatMap(c => c.children || []).find(c => c.slug === childSlug)
-                || categoryTree.flatMap(c => c.children || []).flatMap(d => d.children || []).find(c => c.slug === childSlug);
+              const childName = slugNames.get(childSlug) || childSlug;
               const count = categoryCounts.get(childSlug) || 0;
               return (
                 <label class={`filter-item ${isActive(childSlug) ? 'active' : ''}`}>
                   <input type="checkbox" checked={isActive(childSlug)} onchange={`toggleCategory('${childSlug}')`} />
-                  <span>{child?.name || childSlug}</span>
+                  <span>{childName}</span>
                   <span class="count">({count})</span>
                 </label>
               );

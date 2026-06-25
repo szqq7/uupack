@@ -4,6 +4,7 @@ import Base from "../../layouts/Base.astro";
 
 const { entries } = await getEmDashCollection("productss");
 
+// 三级分类树结构
 const categoryTree = [
   {
     slug: "company-news",
@@ -45,7 +46,6 @@ function collectSections(tree) {
 }
 const categorySections = collectSections(categoryTree);
 
-// 扁平收集所有节点名（用于 slug → name 映射）
 function flattenNames(tree) {
   const map = new Map();
   tree.forEach(n => {
@@ -56,29 +56,36 @@ function flattenNames(tree) {
 }
 const slugNames = flattenNames(categoryTree);
 
-// 统计每个分类的产品数量
+// 从 category_slugs 字段读取分类
 const categoryCounts = new Map();
-entries?.forEach(entry => {
-  const terms = entry.terms?.product || [];
-  terms.forEach(term => {
-    const slug = term.slug;
-    categoryCounts.set(slug, (categoryCounts.get(slug) || 0) + 1);
-  });
+const productList = entries || [];
+
+productList.forEach(entry => {
+  try {
+    const slugs = JSON.parse(entry.data?.category_slugs || '[]');
+    if (Array.isArray(slugs)) {
+      slugs.forEach(slug => {
+        categoryCounts.set(slug, (categoryCounts.get(slug) || 0) + 1);
+      });
+    }
+  } catch {}
 });
 
 const url = new URL(Astro.request.url);
 const selectedCategories = url.searchParams.getAll("category");
 
 const filteredProducts = selectedCategories.length > 0
-  ? entries?.filter(e => {
-      const productTerms = e.terms?.product?.map(t => t.slug) || [];
-      return selectedCategories.some(cat => productTerms.includes(cat));
+  ? productList.filter(entry => {
+      try {
+        const slugs = JSON.parse(entry.data?.category_slugs || '[]');
+        return selectedCategories.some(cat => slugs.includes(cat));
+      } catch { return false; }
     })
-  : entries;
+  : productList;
 
 function getFirstImage(entry) {
   try {
-    if (!entry.data?.picture_json) return '';
+    if (!entry?.data?.picture_json) return '';
     const raw = typeof entry.data.picture_json === 'string' ? entry.data.picture_json : JSON.stringify(entry.data.picture_json);
     if (!raw || raw === 'null' || raw === '{}') return '';
     const parsed = JSON.parse(raw);
@@ -92,11 +99,6 @@ function isActive(slug) { return selectedCategories.includes(slug); }
 ---
 
 <Base title="Products">
-  <!-- 调试：查看实际 slug -->
-  <div style="background:#ff0;padding:8px 12px;font-size:12px;font-family:monospace;line-height:1.6;">
-    Actual slugs from products: {JSON.stringify(Array.from(categoryCounts.keys()))}
-  </div>
-
   <div class="products-page">
     <aside class="filter-sidebar">
       <div class="filter-section all-products-section">

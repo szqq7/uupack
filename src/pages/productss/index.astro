@@ -4,40 +4,46 @@ import Base from "../../layouts/Base.astro";
 
 const { entries } = await getEmDashCollection("productss");
 
-// 三级分类树结构
+// 调试：看第一个产品的数据
+const sample = entries?.[0];
+const debug = sample ? {
+  id: sample.id,
+  hasCategorySlugs: !!sample.data?.category_slugs,
+  categorySlugs: sample.data?.category_slugs,
+  dataKeys: Object.keys(sample.data || {})
+} : 'NO ENTRIES';
+
+// 统计 category_slugs
+const categoryCounts = new Map();
+entries?.forEach(entry => {
+  try {
+    const raw = entry.data?.category_slugs;
+    if (raw) {
+      const slugs = JSON.parse(raw);
+      if (Array.isArray(slugs)) {
+        slugs.forEach(slug => {
+          categoryCounts.set(slug, (categoryCounts.get(slug) || 0) + 1);
+        });
+      }
+    }
+  } catch {}
+});
+
 const categoryTree = [
   {
     slug: "company-news",
     name: "Company News",
     children: [
-      {
-        slug: "company-industry",
-        name: "Industry Trends",
-        children: [
-          { slug: "ai-technology", name: "AI Technology" },
-          { slug: "market-analysis", name: "Market Analysis" }
-        ]
-      },
-      {
-        slug: "company-events",
-        name: "Company Events",
-        children: [
-          { slug: "annual-meeting", name: "Annual Meeting" },
-          { slug: "company-corporates", name: "Company Corporates" },
-          { slug: "company-milestones", name: "Company Milestones" },
-          { slug: "team-building", name: "Team Building" },
-          { slug: "test-news", name: "Test News" }
-        ]
-      }
+      { slug: "company-industry", name: "Industry Trends", children: [{ slug: "ai-technology", name: "AI Technology" }, { slug: "market-analysis", name: "Market Analysis" }] },
+      { slug: "company-events", name: "Company Events", children: [{ slug: "annual-meeting", name: "Annual Meeting" }, { slug: "company-corporates", name: "Company Corporates" }, { slug: "company-milestones", name: "Company Milestones" }, { slug: "team-building", name: "Team Building" }, { slug: "test-news", name: "Test News" }] }
     ]
   }
 ];
 
-// 递归收集所有有子类的节点（每个独立做一个列表）
 function collectSections(tree) {
   const sections = [];
   tree.forEach(node => {
-    if (node.children && node.children.length > 0) {
+    if (node.children?.length > 0) {
       sections.push({ slug: node.slug, name: node.name, children: node.children.map(c => c.slug) });
       sections.push(...collectSections(node.children));
     }
@@ -46,42 +52,26 @@ function collectSections(tree) {
 }
 const categorySections = collectSections(categoryTree);
 
-function flattenNames(tree) {
-  const map = new Map();
+const slugNames = new Map();
+function flatten(tree) {
   tree.forEach(n => {
-    map.set(n.slug, n.name);
-    if (n.children) flattenNames(n.children).forEach((v, k) => map.set(k, v));
+    slugNames.set(n.slug, n.name);
+    if (n.children) flatten(n.children);
   });
-  return map;
 }
-const slugNames = flattenNames(categoryTree);
-
-// 从 category_slugs 字段读取分类
-const categoryCounts = new Map();
-const productList = entries || [];
-
-productList.forEach(entry => {
-  try {
-    const slugs = JSON.parse(entry.data?.category_slugs || '[]');
-    if (Array.isArray(slugs)) {
-      slugs.forEach(slug => {
-        categoryCounts.set(slug, (categoryCounts.get(slug) || 0) + 1);
-      });
-    }
-  } catch {}
-});
+flatten(categoryTree);
 
 const url = new URL(Astro.request.url);
 const selectedCategories = url.searchParams.getAll("category");
 
 const filteredProducts = selectedCategories.length > 0
-  ? productList.filter(entry => {
+  ? entries?.filter(e => {
       try {
-        const slugs = JSON.parse(entry.data?.category_slugs || '[]');
+        const slugs = JSON.parse(e.data?.category_slugs || '[]');
         return selectedCategories.some(cat => slugs.includes(cat));
       } catch { return false; }
     })
-  : productList;
+  : entries;
 
 function getFirstImage(entry) {
   try {
@@ -90,21 +80,27 @@ function getFirstImage(entry) {
     if (!raw || raw === 'null' || raw === '{}') return '';
     const parsed = JSON.parse(raw);
     const pics = Array.isArray(parsed) ? parsed : [parsed];
-    if (!pics[0]) return '';
-    return pics[0]?.url || pics[0]?.src || (typeof pics[0] === 'string' ? pics[0] : '');
-  } catch (e) { return ''; }
+    return pics[0]?.url || pics[0]?.src || pics[0] || '';
+  } catch { return ''; }
 }
 
 function isActive(slug) { return selectedCategories.includes(slug); }
 ---
 
 <Base title="Products">
+  <!-- 调试信息 -->
+  <div style="background:#ff0;padding:10px;font-size:11px;font-family:monospace;max-height:150px;overflow:auto;">
+    Sample: {JSON.stringify(debug)}
+    Counts: {JSON.stringify(Array.from(categoryCounts.entries()))}
+    Total: {entries?.length || 0}
+  </div>
+
   <div class="products-page">
     <aside class="filter-sidebar">
       <div class="filter-section all-products-section">
         <a href="/productss" class={`filter-item all-products ${selectedCategories.length === 0 ? 'active' : ''}`}>
           <input type="checkbox" checked={selectedCategories.length === 0} />
-          <span>All Products</span>
+          <span>All Products ({entries?.length || 0})</span>
         </a>
       </div>
 
@@ -113,12 +109,11 @@ function isActive(slug) { return selectedCategories.includes(slug); }
           <span class="section-title">{section.name}</span>
           <div class="section-items">
             {section.children.map(childSlug => {
-              const childName = slugNames.get(childSlug) || childSlug;
               const count = categoryCounts.get(childSlug) || 0;
               return (
                 <label class={`filter-item ${isActive(childSlug) ? 'active' : ''}`}>
                   <input type="checkbox" checked={isActive(childSlug)} onchange={`toggleCategory('${childSlug}')`} />
-                  <span>{childName}</span>
+                  <span>{slugNames.get(childSlug) || childSlug}</span>
                   <span class="count">({count})</span>
                 </label>
               );
@@ -131,7 +126,7 @@ function isActive(slug) { return selectedCategories.includes(slug); }
     <main class="products-main">
       <h1 class="page-title">Products {selectedCategories.length > 0 && filteredProducts ? `(${filteredProducts.length})` : ''}</h1>
       <div class="products-grid">
-        {filteredProducts?.map(product => {
+        {filteredProducts?.slice(0, 12).map(product => {
           const imgUrl = getFirstImage(product);
           return (
             <a href={`/productss/${product.slug}`} class="product-card">
@@ -143,7 +138,7 @@ function isActive(slug) { return selectedCategories.includes(slug); }
           );
         })}
       </div>
-      {(!filteredProducts || filteredProducts.length === 0) && <div class="empty-state"><p>No products found</p></div>}
+      {(!filteredProducts || filteredProducts.length === 0) && <div class="empty-state"><p>No products</p></div>}
     </main>
   </div>
 

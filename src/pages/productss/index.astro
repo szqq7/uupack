@@ -4,23 +4,24 @@ import Base from "../../layouts/Base.astro";
 
 const { entries } = await getEmDashCollection("productss");
 
-const categoryGroups = [
+const categoryTree = [
   {
-    title: "Company News",
-    categories: [{ slug: "company-news", name: "Company News" }]
+    slug: "company-news",
+    name: "Company News",
+    children: []
   },
   {
-    title: "Industry Trends",
-    categories: [
-      { slug: "company-industry", name: "Industry Trends" },
+    slug: "company-industry",
+    name: "Industry Trends",
+    children: [
       { slug: "ai-technology", name: "AI Technology" },
       { slug: "market-analysis", name: "Market Analysis" }
     ]
   },
   {
-    title: "Company Events",
-    categories: [
-      { slug: "company-events", name: "Company Events" },
+    slug: "company-events",
+    name: "Company Events",
+    children: [
       { slug: "annual-meeting", name: "Annual Meeting" },
       { slug: "company-corporates", name: "Company Corporates" },
       { slug: "company-milestones", name: "Company Milestones" },
@@ -28,8 +29,10 @@ const categoryGroups = [
     ]
   },
   {
-    title: "Other",
-    categories: [{ slug: "test-news", name: "Test News" }]
+    slug: "test-news",
+    name: "Test News",
+    children: [],
+    group: "Other"
   }
 ];
 
@@ -63,60 +66,74 @@ function getFirstImage(entry) {
     return pics[0]?.url || pics[0]?.src || (typeof pics[0] === 'string' ? pics[0] : '');
   } catch (e) { return ''; }
 }
+
+function isActive(slug) { return selectedCategories.includes(slug); }
 ---
 
 <Base title="Products">
   <div class="products-page">
     <aside class="filter-sidebar">
-      <div class="filter-section">
+      <div class="filter-section all-products-section">
         <a href="/productss" class={`filter-item all-products ${selectedCategories.length === 0 ? 'active' : ''}`}>
           <input type="checkbox" checked={selectedCategories.length === 0} />
           <span>All Products</span>
         </a>
       </div>
 
-      {categoryGroups.map(group => (
-        <div class="filter-group">
-          <h4 class="group-title">{group.title}</h4>
-          {group.categories.map(cat => {
-            const count = categoryCounts.get(cat.slug) || 0;
-            if (count === 0) return null;
-            return (
-              <label class={`filter-item ${selectedCategories.includes(cat.slug) ? 'active' : ''}`}>
-                <input type="checkbox" value={cat.slug} checked={selectedCategories.includes(cat.slug)} onchange={`toggleCategory('${cat.slug}')`} />
-                <span>{cat.name}</span>
-                <span class="count">({count})</span>
-              </label>
-            );
-          })}
-        </div>
-      ))}
+      {categoryTree.map(level1 => {
+        const level1Count = categoryCounts.get(level1.slug) || 0;
+        const hasChildren = level1.children && level1.children.length > 0;
+        return (
+          <div class="category-block">
+            <div class="level-1">
+              {hasChildren ? (
+                <span class="level-1-title">{level1.name}</span>
+              ) : (
+                <label class={`filter-item ${isActive(level1.slug) ? 'active' : ''}`}>
+                  <input type="checkbox" checked={isActive(level1.slug)} onchange={`toggleCategory('${level1.slug}')`} />
+                  <span>{level1.name}</span>
+                  {level1Count > 0 && <span class="count">({level1Count})</span>}
+                </label>
+              )}
+            </div>
+            {hasChildren && (
+              <div class="level-2-list">
+                {level1.children.map(level2 => {
+                  const level2Count = categoryCounts.get(level2.slug) || 0;
+                  if (level2Count === 0) return null;
+                  return (
+                    <div class="level-2-item">
+                      <label class={`filter-item level-2 ${isActive(level2.slug) ? 'active' : ''}`}>
+                        <input type="checkbox" checked={isActive(level2.slug)} onchange={`toggleCategory('${level2.slug}')`} />
+                        <span>{level2.name}</span>
+                        <span class="count">({level2Count})</span>
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </aside>
 
     <main class="products-main">
       <h1 class="page-title">Products {selectedCategories.length > 0 && filteredProducts ? `(${filteredProducts.length})` : ''}</h1>
-      
       <div class="products-grid">
         {filteredProducts?.map(product => {
           const imgUrl = getFirstImage(product);
           return (
             <a href={`/productss/${product.slug}`} class="product-card">
               <div class="product-image">
-                {imgUrl ? (
-                  <img src={imgUrl} alt={product.data?.title || ''} loading="lazy" />
-                ) : (
-                  <div class="no-image">No Image</div>
-                )}
+                {imgUrl ? <img src={imgUrl} alt={product.data?.title || ''} loading="lazy" /> : <div class="no-image">No Image</div>}
               </div>
               <h3 class="product-title">{product.data?.title}</h3>
             </a>
           );
         })}
       </div>
-
-      {(!filteredProducts || filteredProducts.length === 0) && (
-        <div class="empty-state"><p>No products found</p></div>
-      )}
+      {(!filteredProducts || filteredProducts.length === 0) && <div class="empty-state"><p>No products found</p></div>}
     </main>
   </div>
 
@@ -124,12 +141,8 @@ function getFirstImage(entry) {
     function toggleCategory(slug) {
       const url = new URL(location.href);
       const current = url.searchParams.getAll('category');
-      if (current.includes(slug)) {
-        url.searchParams.delete('category');
-        current.filter(c => c !== slug).forEach(c => url.searchParams.append('category', c));
-      } else {
-        url.searchParams.append('category', slug);
-      }
+      if (current.includes(slug)) { url.searchParams.delete('category'); current.filter(c => c !== slug).forEach(c => url.searchParams.append('category', c)); }
+      else { url.searchParams.append('category', slug); }
       location.href = url.toString();
     }
   </script>
@@ -139,21 +152,24 @@ function getFirstImage(entry) {
   .products-page { max-width: 1400px; margin: 0 auto; padding: 2rem; display: grid; grid-template-columns: 260px 1fr; gap: 3rem; align-items: start; }
 
   .filter-sidebar { position: sticky; top: 2rem; height: fit-content; }
-  .filter-section { padding: 0.75rem 0; border-bottom: 1px solid #e8e8e8; }
-  .filter-group { padding: 1rem 0; border-bottom: 1px solid #e8e8e8; }
-  .group-title { font-size: 0.95rem; font-weight: 700; color: #222; margin-bottom: 0.75rem; padding-left: 0.25rem; }
-
-  .filter-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.25rem; cursor: pointer; font-size: 0.9rem; color: #555; text-decoration: none; transition: all 0.15s; border-radius: 4px; }
+  .all-products-section { padding: 0.75rem 0; border-bottom: 1px solid #e8e8e8; margin-bottom: 0.5rem; }
+  .category-block { padding: 0.75rem 0; border-bottom: 1px solid #e8e8e8; }
+  .level-1 { margin-bottom: 0.5rem; }
+  .level-1-title { display: block; font-size: 0.95rem; font-weight: 700; color: #222; padding: 0.5rem 0.25rem; }
+  .level-2-list { padding-left: 0.5rem; }
+  .level-2-item { margin: 0.25rem 0; }
+  
+  .filter-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0.25rem; cursor: pointer; font-size: 0.9rem; color: #555; text-decoration: none; transition: all 0.15s; border-radius: 4px; }
   .filter-item:hover { background: #f5f5f5; color: #000; }
   .filter-item.active { color: #000; font-weight: 500; }
   .filter-item.all-products { font-weight: 600; }
   .filter-item input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; }
+  .filter-item.level-2 { font-size: 0.88rem; color: #666; }
   .count { color: #999; font-size: 0.85rem; margin-left: auto; }
 
   .products-main { min-height: 600px; }
   .page-title { font-size: 1.5rem; font-weight: 600; margin-bottom: 1.5rem; color: #333; }
   .products-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; }
-
   .product-card { text-decoration: none; color: inherit; transition: transform 0.2s, box-shadow 0.2s; border-radius: 8px; overflow: hidden; background: #fff; border: 1px solid #f0f0f0; }
   .product-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
   .product-image { aspect-ratio: 1; background: #f8f9fa; overflow: hidden; display: flex; align-items: center; justify-content: center; }
@@ -161,7 +177,6 @@ function getFirstImage(entry) {
   .product-card:hover .product-image img { transform: scale(1.03); }
   .no-image { color: #bbb; font-size: 0.9rem; }
   .product-title { font-size: 0.9rem; font-weight: 500; line-height: 1.4; color: #333; padding: 0.75rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 3.2em; }
-
   .empty-state { text-align: center; padding: 5rem 2rem; color: #999; }
 
   @media (max-width: 1200px) { .products-grid { grid-template-columns: repeat(3, 1fr); } }

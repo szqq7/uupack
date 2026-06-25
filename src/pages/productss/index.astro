@@ -4,58 +4,44 @@ import Base from "../../layouts/Base.astro";
 
 const { entries } = await getEmDashCollection("productss");
 
-// 打印调试：看看第一个产品的 terms 结构
-console.log("Sample entry terms:", entries?.[0]?.terms);
-
+// 根据图三的实际分类树结构
 const categoryTree = [
   {
     slug: "company-news",
     name: "Company News",
     children: [
-      { slug: "company-news-general", name: "General News" }
-    ]
-  },
-  {
-    slug: "company-industry",
-    name: "Industry Trends",
-    children: [
-      { slug: "ai-technology", name: "AI Technology" },
-      { slug: "market-analysis", name: "Market Analysis" }
-    ]
-  },
-  {
-    slug: "company-events",
-    name: "Company Events",
-    children: [
-      { slug: "annual-meeting", name: "Annual Meeting" },
-      { slug: "company-corporates", name: "Company Corporates" },
-      { slug: "company-milestones", name: "Company Milestones" },
-      { slug: "team-building", name: "Team Building" }
-    ]
-  },
-  {
-    slug: "test-news",
-    name: "Other",
-    children: [
-      { slug: "test-news-general", name: "Test Category" }
+      {
+        slug: "company-industry",
+        name: "Industry Trends",
+        children: [
+          { slug: "ai-technology", name: "AI Technology" },
+          { slug: "market-analysis", name: "Market Analysis" }
+        ]
+      },
+      {
+        slug: "company-events",
+        name: "Company Events",
+        children: [
+          { slug: "annual-meeting", name: "Annual Meeting" },
+          { slug: "company-corporates", name: "Company Corporates" },
+          { slug: "company-milestones", name: "Company Milestones" },
+          { slug: "team-building", name: "Team Building" },
+          { slug: "test-news", name: "Test News" }
+        ]
+      }
     ]
   }
 ];
 
-// 统计每个分类的产品数量 - 同时检查 slug 和 name
+// 统计每个分类的产品数量
 const categoryCounts = new Map();
 entries?.forEach(entry => {
   const terms = entry.terms?.product || [];
   terms.forEach(term => {
     const slug = term.slug;
-    const name = term.name;
     categoryCounts.set(slug, (categoryCounts.get(slug) || 0) + 1);
-    // 同时用 name 统计，防止 slug 格式不一致
-    if (name) categoryCounts.set(name, (categoryCounts.get(name) || 0) + 1);
   });
 });
-
-console.log("Category counts:", Object.fromEntries(categoryCounts));
 
 const url = new URL(Astro.request.url);
 const selectedCategories = url.searchParams.getAll("category");
@@ -85,6 +71,7 @@ function isActive(slug) { return selectedCategories.includes(slug); }
 <Base title="Products">
   <div class="products-page">
     <aside class="filter-sidebar">
+      <!-- All Products -->
       <div class="filter-section all-products-section">
         <a href="/productss" class={`filter-item all-products ${selectedCategories.length === 0 ? 'active' : ''}`}>
           <input type="checkbox" checked={selectedCategories.length === 0} />
@@ -92,19 +79,48 @@ function isActive(slug) { return selectedCategories.includes(slug); }
         </a>
       </div>
 
+      <!-- 三级分类树 -->
       {categoryTree.map(level1 => (
         <div class="category-block">
+          <!-- 一级标题 -->
           <span class="level-1-title">{level1.name}</span>
-          {level1.children.length > 0 && (
+          
+          <!-- 二级列表 -->
+          {level1.children?.length > 0 && (
             <div class="level-2-list">
               {level1.children.map(level2 => {
-                const count = categoryCounts.get(level2.slug) || categoryCounts.get(level2.name) || 0;
+                const hasChildren = level2.children && level2.children.length > 0;
+                const l2Count = categoryCounts.get(level2.slug) || 0;
+                
                 return (
-                  <label class={`filter-item level-2 ${isActive(level2.slug) ? 'active' : ''}`}>
-                    <input type="checkbox" checked={isActive(level2.slug)} onchange={`toggleCategory('${level2.slug}')`} />
-                    <span>{level2.name}</span>
-                    <span class="count">({count})</span>
-                  </label>
+                  <div class="level-2-block">
+                    {hasChildren ? (
+                      <>
+                        <!-- 二级有子类，做标题 -->
+                        <span class="level-2-title">{level2.name}</span>
+                        <!-- 三级复选框 -->
+                        <div class="level-3-list">
+                          {level2.children.map(level3 => {
+                            const l3Count = categoryCounts.get(level3.slug) || 0;
+                            return (
+                              <label class={`filter-item level-3 ${isActive(level3.slug) ? 'active' : ''}`}>
+                                <input type="checkbox" checked={isActive(level3.slug)} onchange={`toggleCategory('${level3.slug}')`} />
+                                <span>{level3.name}</span>
+                                <span class="count">({l3Count})</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      <!-- 二级无子类，做复选框 -->
+                      <label class={`filter-item level-2 ${isActive(level2.slug) ? 'active' : ''}`}>
+                        <input type="checkbox" checked={isActive(level2.slug)} onchange={`toggleCategory('${level2.slug}')`} />
+                        <span>{level2.name}</span>
+                        <span class="count">({l2Count})</span>
+                      </label>
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -148,14 +164,18 @@ function isActive(slug) { return selectedCategories.includes(slug); }
   .filter-sidebar { position: sticky; top: 2rem; height: fit-content; }
   .all-products-section { padding: 0.75rem 0; border-bottom: 1px solid #e8e8e8; margin-bottom: 0.5rem; }
   .category-block { padding: 0.75rem 0; border-bottom: 1px solid #e8e8e8; }
-  .level-1-title { display: block; font-size: 0.95rem; font-weight: 700; color: #222; padding: 0.5rem 0.25rem; margin-bottom: 0.25rem; }
+  .level-1-title { display: block; font-size: 0.95rem; font-weight: 700; color: #222; padding: 0.5rem 0.25rem; margin-bottom: 0.5rem; }
   .level-2-list { padding-left: 0.5rem; }
-  .filter-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0.25rem; cursor: pointer; font-size: 0.88rem; color: #555; text-decoration: none; transition: all 0.15s; border-radius: 4px; }
+  .level-2-block { margin: 0.5rem 0; }
+  .level-2-title { display: block; font-size: 0.9rem; font-weight: 600; color: #333; padding: 0.4rem 0.25rem; margin-bottom: 0.25rem; }
+  .level-3-list { padding-left: 0.75rem; border-left: 2px solid #e0e0e0; margin-left: 0.25rem; margin-bottom: 0.5rem; }
+  .filter-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.35rem 0.25rem; cursor: pointer; font-size: 0.88rem; color: #555; text-decoration: none; transition: all 0.15s; border-radius: 4px; }
   .filter-item:hover { background: #f5f5f5; color: #000; }
   .filter-item.active { color: #000; font-weight: 500; }
   .filter-item.all-products { font-weight: 600; font-size: 0.9rem; }
   .filter-item input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; }
-  .filter-item.level-2 { color: #444; }
+  .filter-item.level-2 { color: #444; font-size: 0.9rem; }
+  .filter-item.level-3 { color: #666; font-size: 0.85rem; }
   .count { color: #999; font-size: 0.8rem; margin-left: auto; }
   .products-main { min-height: 600px; }
   .page-title { font-size: 1.5rem; font-weight: 600; margin-bottom: 1.5rem; color: #333; }

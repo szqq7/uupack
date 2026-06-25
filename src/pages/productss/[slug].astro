@@ -18,6 +18,15 @@ if (data.picture_json) {
   } catch (e) {}
 }
 
+let colorImgs = [];
+if (data.color_img) {
+  try {
+    const raw = typeof data.color_img === "string" ? data.color_img : JSON.stringify(data.color_img);
+    const parsed = JSON.parse(raw);
+    colorImgs = Array.isArray(parsed) ? parsed : [parsed];
+  } catch (e) {}
+}
+
 let highlightItems = [];
 if (data.top_highlights) {
   const text = typeof data.top_highlights === "string" ? data.top_highlights : String(data.top_highlights);
@@ -72,6 +81,19 @@ function getImgSrc(item) { return item?.url || item?.src || (typeof item === "st
         <h1 class="product-title">{title}</h1>
         {spu && <div class="product-code">Code: {spu}</div>}
 
+        <!-- 颜色图横排 -->
+        {colorImgs.length > 0 && (
+          <div class="color-section">
+            <div class="color-list">
+              {colorImgs.map((img, i) => (
+                <button class="color-thumb-btn" data-src={getImgSrc(img)} aria-label={`Color option ${i + 1}`}>
+                  <img src={getImgSrc(img)} class="color-thumb" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <section class="product-section">
           <h2 class="section-title">Product Details</h2>
 
@@ -109,7 +131,17 @@ function getImgSrc(item) { return item?.url || item?.src || (typeof item === "st
   </div>
 
   <script>
+    // 主图缩略图切换
     document.querySelectorAll('.thumb-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const src = this.getAttribute('data-src');
+        const mainImg = document.getElementById('mainImg');
+        if (mainImg && src) mainImg.src = src;
+      });
+    });
+    
+    // 颜色图点击切换主图
+    document.querySelectorAll('.color-thumb-btn').forEach(btn => {
       btn.addEventListener('click', function() {
         const src = this.getAttribute('data-src');
         const mainImg = document.getElementById('mainImg');
@@ -134,7 +166,15 @@ function getImgSrc(item) { return item?.url || item?.src || (typeof item === "st
 
   .product-info { padding-top: 0.5rem; }
   .product-title { font-size: 1.75rem; font-weight: 600; margin-bottom: 0.5rem; line-height: 1.3; }
-  .product-code { color: #666; font-size: 0.9rem; margin-bottom: 2rem; }
+  .product-code { color: #666; font-size: 0.9rem; margin-bottom: 1rem; }
+  
+  /* 颜色图横排 */
+  .color-section { margin-bottom: 1.5rem; }
+  .color-list { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .color-thumb-btn { padding: 2px; border: 2px solid #e0e0e0; border-radius: 4px; background: #fff; cursor: pointer; transition: border-color 0.2s; }
+  .color-thumb-btn:hover, .color-thumb-btn:focus { border-color: #333; }
+  .color-thumb { width: 60px; height: 60px; object-fit: cover; border-radius: 2px; display: block; }
+  
   .section-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid #333; }
   
   .details-panel { margin-bottom: 1rem; border: 1px solid #e0e0e0; border-radius: 6px; overflow: hidden; }

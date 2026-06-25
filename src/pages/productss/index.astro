@@ -4,7 +4,7 @@ import Base from "../../layouts/Base.astro";
 
 const { entries } = await getEmDashCollection("productss");
 
-// 根据图三的实际分类树结构
+// 每个有子类的节点单独做一个列表
 const categoryTree = [
   {
     slug: "company-news",
@@ -32,6 +32,26 @@ const categoryTree = [
     ]
   }
 ];
+
+// 递归收集所有可勾选的分类
+function collectCheckableItems(tree) {
+  const items = [];
+  tree.forEach(node => {
+    if (node.children && node.children.length > 0) {
+      // 有子类，子类作为复选框
+      items.push({
+        slug: node.slug,
+        name: node.name,
+        children: node.children.map(c => c.slug)
+      });
+      // 递归
+      items.push(...collectCheckableItems(node.children));
+    }
+  });
+  return items;
+}
+
+const checkableSections = collectCheckableItems(categoryTree);
 
 // 统计每个分类的产品数量
 const categoryCounts = new Map();
@@ -79,52 +99,25 @@ function isActive(slug) { return selectedCategories.includes(slug); }
         </a>
       </div>
 
-      <!-- 三级分类树 -->
-      {categoryTree.map(level1 => (
+      <!-- 递归生成的分类列表 -->
+      {checkableSections.map(section => (
         <div class="category-block">
-          <!-- 一级标题 -->
-          <span class="level-1-title">{level1.name}</span>
-          
-          <!-- 二级列表 -->
-          {level1.children?.length > 0 && (
-            <div class="level-2-list">
-              {level1.children.map(level2 => {
-                const hasChildren = level2.children && level2.children.length > 0;
-                const l2Count = categoryCounts.get(level2.slug) || 0;
-                
-                return (
-                  <div class="level-2-block">
-                    {hasChildren ? (
-                      <>
-                        <!-- 二级有子类，做标题 -->
-                        <span class="level-2-title">{level2.name}</span>
-                        <!-- 三级复选框 -->
-                        <div class="level-3-list">
-                          {level2.children.map(level3 => {
-                            const l3Count = categoryCounts.get(level3.slug) || 0;
-                            return (
-                              <label class={`filter-item level-3 ${isActive(level3.slug) ? 'active' : ''}`}>
-                                <input type="checkbox" checked={isActive(level3.slug)} onchange={`toggleCategory('${level3.slug}')`} />
-                                <span>{level3.name}</span>
-                                <span class="count">({l3Count})</span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      </>
-                    ) : (
-                      <!-- 二级无子类，做复选框 -->
-                      <label class={`filter-item level-2 ${isActive(level2.slug) ? 'active' : ''}`}>
-                        <input type="checkbox" checked={isActive(level2.slug)} onchange={`toggleCategory('${level2.slug}')`} />
-                        <span>{level2.name}</span>
-                        <span class="count">({l2Count})</span>
-                      </label>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <span class="section-title">{section.name}</span>
+          <div class="section-items">
+            {section.children.map(childSlug => {
+              const child = categoryTree.find(c => c.slug === childSlug)
+                || categoryTree.flatMap(c => c.children || []).find(c => c.slug === childSlug)
+                || categoryTree.flatMap(c => c.children || []).flatMap(d => d.children || []).find(c => c.slug === childSlug);
+              const count = categoryCounts.get(childSlug) || 0;
+              return (
+                <label class={`filter-item ${isActive(childSlug) ? 'active' : ''}`}>
+                  <input type="checkbox" checked={isActive(childSlug)} onchange={`toggleCategory('${childSlug}')`} />
+                  <span>{child?.name || childSlug}</span>
+                  <span class="count">({count})</span>
+                </label>
+              );
+            })}
+          </div>
         </div>
       ))}
     </aside>
@@ -162,20 +155,15 @@ function isActive(slug) { return selectedCategories.includes(slug); }
 <style>
   .products-page { max-width: 1400px; margin: 0 auto; padding: 2rem; display: grid; grid-template-columns: 260px 1fr; gap: 3rem; align-items: start; }
   .filter-sidebar { position: sticky; top: 2rem; height: fit-content; }
-  .all-products-section { padding: 0.75rem 0; border-bottom: 1px solid #e8e8e8; margin-bottom: 0.5rem; }
-  .category-block { padding: 0.75rem 0; border-bottom: 1px solid #e8e8e8; }
-  .level-1-title { display: block; font-size: 0.95rem; font-weight: 700; color: #222; padding: 0.5rem 0.25rem; margin-bottom: 0.5rem; }
-  .level-2-list { padding-left: 0.5rem; }
-  .level-2-block { margin: 0.5rem 0; }
-  .level-2-title { display: block; font-size: 0.9rem; font-weight: 600; color: #333; padding: 0.4rem 0.25rem; margin-bottom: 0.25rem; }
-  .level-3-list { padding-left: 0.75rem; border-left: 2px solid #e0e0e0; margin-left: 0.25rem; margin-bottom: 0.5rem; }
-  .filter-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.35rem 0.25rem; cursor: pointer; font-size: 0.88rem; color: #555; text-decoration: none; transition: all 0.15s; border-radius: 4px; }
+  .all-products-section { padding: 0.75rem 0; border-bottom: 1px solid #e0e0e0; margin-bottom: 0.5rem; }
+  .category-block { padding: 0.75rem 0; border-bottom: 1px solid #e0e0e0; }
+  .section-title { display: block; font-size: 0.95rem; font-weight: 700; color: #222; padding: 0.5rem 0.25rem; margin-bottom: 0.5rem; }
+  .section-items { padding-left: 0.5rem; }
+  .filter-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0.25rem; cursor: pointer; font-size: 0.88rem; color: #555; text-decoration: none; transition: all 0.15s; border-radius: 4px; }
   .filter-item:hover { background: #f5f5f5; color: #000; }
   .filter-item.active { color: #000; font-weight: 500; }
   .filter-item.all-products { font-weight: 600; font-size: 0.9rem; }
   .filter-item input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; }
-  .filter-item.level-2 { color: #444; font-size: 0.9rem; }
-  .filter-item.level-3 { color: #666; font-size: 0.85rem; }
   .count { color: #999; font-size: 0.8rem; margin-left: auto; }
   .products-main { min-height: 600px; }
   .page-title { font-size: 1.5rem; font-weight: 600; margin-bottom: 1.5rem; color: #333; }

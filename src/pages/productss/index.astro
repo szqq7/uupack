@@ -1,8 +1,12 @@
 ---
-import { getEmDashCollection } from "emdash";
 import Base from "../../layouts/Base.astro";
 
-const { entries } = await getEmDashCollection("productss");
+const apiUrl = `${Astro.url.origin}/_emdash/api/productss`;
+const res = await fetch(apiUrl, { headers: { 'Accept': 'application/json' } });
+const raw = await res.json();
+
+const entries = raw.entries || raw.data || raw;
+const first = Array.isArray(entries) ? entries[0] : null;
 
 const categoryTree = [
   {
@@ -32,7 +36,6 @@ const categoryTree = [
   }
 ];
 
-// 递归收集所有有子类的节点（每个独立做一个列表）
 function collectSections(tree) {
   const sections = [];
   tree.forEach(node => {
@@ -45,7 +48,6 @@ function collectSections(tree) {
 }
 const categorySections = collectSections(categoryTree);
 
-// 扁平收集所有节点名（用于 slug → name 映射）
 function flattenNames(tree) {
   const map = new Map();
   tree.forEach(n => {
@@ -56,29 +58,33 @@ function flattenNames(tree) {
 }
 const slugNames = flattenNames(categoryTree);
 
-// 统计每个分类的产品数量
+// 从数据中收集分类 slug
 const categoryCounts = new Map();
-entries?.forEach(entry => {
-  const terms = entry.terms?.product || [];
-  terms.forEach(term => {
-    const slug = term.slug;
-    categoryCounts.set(slug, (categoryCounts.get(slug) || 0) + 1);
+if (Array.isArray(entries)) {
+  entries.forEach(entry => {
+    const terms = entry.terms?.product || entry.terms || [];
+    const dataTerms = entry.data?.category_slugs ? JSON.parse(entry.data.category_slugs) : [];
+    const slugs = Array.isArray(terms) ? terms.map(t => t.slug || t) : dataTerms;
+    slugs.forEach(s => categoryCounts.set(s, (categoryCounts.get(s) || 0) + 1));
   });
-});
+}
 
 const url = new URL(Astro.request.url);
 const selectedCategories = url.searchParams.getAll("category");
 
+const productList = Array.isArray(entries) ? entries : [];
 const filteredProducts = selectedCategories.length > 0
-  ? entries?.filter(e => {
-      const productTerms = e.terms?.product?.map(t => t.slug) || [];
-      return selectedCategories.some(cat => productTerms.includes(cat));
+  ? productList.filter(e => {
+      const terms = e.terms?.product || e.terms || [];
+      const dataTerms = e.data?.category_slugs ? JSON.parse(e.data.category_slugs) : [];
+      const slugs = Array.isArray(terms) ? terms.map(t => t.slug || t) : dataTerms;
+      return selectedCategories.some(cat => slugs.includes(cat));
     })
-  : entries;
+  : productList;
 
 function getFirstImage(entry) {
   try {
-    if (!entry.data?.picture_json) return '';
+    if (!entry?.data?.picture_json) return '';
     const raw = typeof entry.data.picture_json === 'string' ? entry.data.picture_json : JSON.stringify(entry.data.picture_json);
     if (!raw || raw === 'null' || raw === '{}') return '';
     const parsed = JSON.parse(raw);
@@ -92,9 +98,14 @@ function isActive(slug) { return selectedCategories.includes(slug); }
 ---
 
 <Base title="Products">
-  <!-- 调试：查看实际 slug -->
-  <div style="background:#ff0;padding:8px 12px;font-size:12px;font-family:monospace;line-height:1.6;">
-    Actual slugs from products: {JSON.stringify(Array.from(categoryCounts.keys()))}
+  <div style="background:#ff0;padding:8px 12px;font-size:11px;font-family:monospace;max-height:150px;overflow:auto;white-space:pre-wrap;">
+    Raw keys: {JSON.stringify(Object.keys(raw))}
+    First item keys: {JSON.stringify(first ? Object.keys(first) : 'NO ENTRY')}
+    Has terms: {String(!!first?.terms)}
+    Terms type: {typeof first?.terms}
+    Terms keys: {JSON.stringify(first?.terms ? Object.keys(first.terms) : 'null')}
+    Product terms: {JSON.stringify(first?.terms?.product)}
+    Counts: {JSON.stringify(Array.from(categoryCounts.entries()))}
   </div>
 
   <div class="products-page">

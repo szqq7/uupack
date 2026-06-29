@@ -1,8 +1,32 @@
 ---
+/**
+ * MegaMenu.astro
+ *
+ * Reads all products from the "productss" EmDash collection, extracts
+ * hierarchical category information, and renders a hover-triggered
+ * mega dropdown navigation bar.
+ *
+ * Category source priority:
+ *   1. category_slugs (JSON array of hierarchical slug paths)
+ *   2. category (flat field) — fallback
+ */
+
 import { getEmDashCollection } from "emdash";
 
 const { entries } = await getEmDashCollection("productss");
 const products = entries || [];
+
+// ---- Debug: dump first product's data structure ----
+const debugSample = products[0]
+  ? {
+      title: products[0].data?.title,
+      hasCategorySlugs: !!products[0].data?.category_slugs,
+      categorySlugsRaw: products[0].data?.category_slugs,
+      category: products[0].data?.category,
+      dataKeys: Object.keys(products[0].data || {}),
+      totalProducts: products.length,
+    }
+  : { error: "no products found" };
 
 function slugToName(slug: string): string {
   return slug
@@ -21,6 +45,8 @@ interface CatNode {
 const tree: CatNode[] = [];
 const slugIndex = new Map<string, CatNode>();
 
+// Priority 1: category_slugs (hierarchical)
+let hasCategorySlugsData = false;
 for (const p of products) {
   const raw = p.data?.category_slugs;
   if (!raw) continue;
@@ -29,6 +55,7 @@ for (const p of products) {
     slugs = JSON.parse(typeof raw === "string" ? raw : JSON.stringify(raw));
   } catch { continue; }
   if (!Array.isArray(slugs) || slugs.length === 0) continue;
+  hasCategorySlugsData = true;
 
   let parentSlug = "";
   for (const s of slugs) {
@@ -39,10 +66,22 @@ for (const p of products) {
       };
       slugIndex.set(fullSlug, node);
       if (!parentSlug) tree.push(node);
-      else slugIndex.get(parentSlug)?.children.push(node);
+      else { const parent = slugIndex.get(parentSlug); if (parent) parent.children.push(node); }
     }
     slugIndex.get(fullSlug)!.count++;
     parentSlug = fullSlug;
+  }
+}
+
+// Priority 2: fallback to flat "category" field
+if (!hasCategorySlugsData) {
+  const flatCount = new Map<string, number>();
+  for (const p of products) {
+    const cat = p.data?.category;
+    if (cat) flatCount.set(cat, (flatCount.get(cat) || 0) + 1);
+  }
+  for (const [name, count] of flatCount) {
+    tree.push({ name, slug: name.toLowerCase().replace(/\s+/g, "-"), children: [], count });
   }
 }
 
@@ -54,35 +93,40 @@ sortTree(tree);
 ---
 
 <nav class="mega-menu" aria-label="Product categories">
+  <!-- 调试条 -->
+  <div style="background:#ff0;padding:4px 16px;font-size:11px;font-family:monospace;max-height:60px;overflow:auto;">
+    Products: {debugSample.totalProducts}
+    {debugSample.error ? ` | ERROR: ${debugSample.error}` : (
+      ` | Has category_slugs: ${String(debugSample.hasCategorySlugs)}` +
+      ` | category field: ${debugSample.category || "none"}` +
+      ` | Keys: ${JSON.stringify(debugSample.dataKeys)}` +
+      ` | category_slugs raw: ${JSON.stringify(debugSample.categorySlugsRaw)}`
+    )}
+    | tree nodes: {tree.length}
+  </div>
+
   <div class="mega-menu-inner">
     <a href="/productss" class="mega-menu-all">All Products</a>
-
     {tree.map((top) => (
       <div class="mega-menu-item">
         <a href={`/productss?category=${top.slug}`} class="mega-menu-trigger">
           {top.name}
           {top.children.length > 0 && <span class="mega-arrow">▾</span>}
         </a>
-
         {top.children.length > 0 && (
           <div class="mega-menu-dropdown">
             <div class="mega-menu-panel">
               <div class="mega-menu-col">
-                <a href={`/productss?category=${top.slug}`} class="mega-cat-head">
-                  All {top.name}
-                </a>
+                <a href={`/productss?category=${top.slug}`} class="mega-cat-head">All {top.name}</a>
                 {top.children.map((child) => (
                   <div class="mega-subgroup">
                     <a href={`/productss?category=${child.slug}`} class="mega-sub-link">
-                      {child.name}
-                      <span class="mega-count">({child.count})</span>
+                      {child.name} <span class="mega-count">({child.count})</span>
                     </a>
                     {child.children.length > 0 && (
                       <div class="mega-grandchildren">
                         {child.children.map((grand) => (
-                          <a href={`/productss?category=${grand.slug}`} class="mega-grand-link">
-                            {grand.name}
-                          </a>
+                          <a href={`/productss?category=${grand.slug}`} class="mega-grand-link">{grand.name}</a>
                         ))}
                       </div>
                     )}
@@ -109,8 +153,7 @@ sortTree(tree);
   .mega-arrow { font-size: 0.65rem; color: var(--color-text-tertiary); transition: transform var(--transition-fast); }
   .mega-menu-item:hover .mega-arrow { transform: rotate(180deg); }
   .mega-menu-dropdown { position: absolute; top: 100%; left: 0; min-width: 280px; max-width: 400px; background: var(--color-bg); border: 1px solid var(--color-border-subtle); border-radius: 0 0 var(--radius) var(--radius); box-shadow: 0 8px 24px rgba(0,0,0,0.08); opacity: 0; visibility: hidden; transform: translateY(-4px); transition: all 0.18s ease; z-index: 200; }
-  .mega-menu-item:hover .mega-menu-dropdown,
-  .mega-menu-item:focus-within .mega-menu-dropdown { opacity: 1; visibility: visible; transform: translateY(0); }
+  .mega-menu-item:hover .mega-menu-dropdown, .mega-menu-item:focus-within .mega-menu-dropdown { opacity: 1; visibility: visible; transform: translateY(0); }
   .mega-menu-panel { padding: 0.75rem; }
   .mega-menu-col { display: flex; flex-direction: column; gap: 0; }
   .mega-cat-head { display: block; padding: 0.5rem 0.75rem; font-size: var(--font-size-sm); font-weight: 700; color: var(--color-accent); text-decoration: none; border-bottom: 1px solid var(--color-border-subtle); margin-bottom: 0.25rem; }

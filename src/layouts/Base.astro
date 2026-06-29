@@ -1,5 +1,6 @@
 ---
 import { getMenu, getEmDashCollection, getSiteSettings } from "emdash";
+import MegaMenu from "../components/MegaMenu.astro";
 import {
 	WidgetArea,
 	EmDashHead,
@@ -137,7 +138,7 @@ const isLoggedIn = !!Astro.locals.user;
 				}
 			</nav>
 		</header>
-
+			<MegaMenu />
 		<main>
 			<slot />
 		</main>

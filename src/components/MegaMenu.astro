@@ -4,6 +4,10 @@ import { getEmDashCollection } from "emdash";
 const { entries } = await getEmDashCollection("productss");
 const products = entries || [];
 
+// 从所有产品的 category_slugs 中提取完整分类树
+// category_slugs 格式: ["company-news", "company-industry", "ai-technology"]
+// 代表: 一级/company-news → 二级/company-industry → 三级/ai-technology
+
 type CatItem = {
   slug: string;
   name: string;
@@ -12,7 +16,7 @@ type CatItem = {
 };
 
 const catMap = new Map<string, CatItem>();
-const leafMap = new Map<string, string[]>();
+const leafMap = new Map<string, string[]>(); // parentSlug -> [child slugs]
 
 for (const p of products) {
   const raw = p.data?.category_slugs;
@@ -22,18 +26,21 @@ for (const p of products) {
   catch { continue; }
   if (!Array.isArray(slugs) || slugs.length === 0) continue;
 
+  // 第一层是一级分类
   const l1 = slugs[0];
   if (!catMap.has(l1)) {
     catMap.set(l1, { slug: l1, name: toName(l1), children: [], productCount: 0 });
   }
   catMap.get(l1)!.productCount++;
 
+  // 第二层是二级分类
   if (slugs.length >= 2) {
     const l2 = slugs[1];
     const parent = catMap.get(l1)!;
     if (!parent.children.find(c => c.slug === l2)) {
       parent.children.push({ slug: l2, name: toName(l2) });
     }
+    // 记录三级分类归属
     if (slugs.length >= 3) {
       const l3 = slugs[2];
       if (!leafMap.has(l2)) leafMap.set(l2, []);
@@ -47,14 +54,33 @@ function toName(slug: string): string {
   return slug.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 }
 
-const menuItems: { slug: string; name: string; isParent: boolean; children: { slug: string; name: string }[] }[] = [];
+// 构建菜单: 一级分类 + 有子级的二级分类独立为菜单项
+const menuItems: {
+  slug: string;
+  name: string;
+  isParent: boolean;
+  children: { slug: string; name: string }[];
+}[] = [];
 
 for (const [slug, item] of catMap) {
-  menuItems.push({ slug, name: item.name, isParent: true, children: item.children });
+  // 一级分类
+  menuItems.push({
+    slug,
+    name: item.name,
+    isParent: true,
+    children: item.children,
+  });
+  
+  // 有三级分类的二级分类也作为独立菜单项
   for (const child of item.children) {
     const leafChildren = leafMap.get(child.slug) || [];
     if (leafChildren.length > 0) {
-      menuItems.push({ slug: child.slug, name: child.name, isParent: false, children: leafChildren.map(s => ({ slug: s, name: toName(s) })) });
+      menuItems.push({
+        slug: child.slug,
+        name: child.name,
+        isParent: false,
+        children: leafChildren.map(s => ({ slug: s, name: toName(s) })),
+      });
     }
   }
 }
@@ -63,16 +89,20 @@ for (const [slug, item] of catMap) {
 <nav class="cat-menu">
   <div class="cat-inner">
     <a href="/productss" class="cat-all">All Products</a>
+    
     {menuItems.map((item) => (
       <div class="cat-item">
         <a href={"/productss?category="+item.slug} class="cat-trigger">
           {item.name}
           {item.children.length > 0 && <span class="arrow">&#9662;</span>}
         </a>
+        
         {item.children.length > 0 && (
           <div class="cat-drop">
             {item.children.map((child) => (
-              <a href={"/productss?category="+child.slug} class="cat-sub-link">{child.name}</a>
+              <a href={"/productss?category="+child.slug} class="cat-sub-link">
+                {child.name}
+              </a>
             ))}
           </div>
         )}

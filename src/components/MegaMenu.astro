@@ -69,10 +69,7 @@ if (hasData) {
     for (const s of slugs) {
       const fullSlug = parentSlug ? `${parentSlug}/${s}` : s;
       if (!slugIndex.has(fullSlug)) {
-        const node = {
-          name: s.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" "),
-          slug: s, children: [],
-        };
+        const node = { name: s.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" "), slug: s, children: [] };
         slugIndex.set(fullSlug, node);
         if (!parentSlug) tree.push({ name: node.name, slug: node.slug, children: [] });
         else { const parent = slugIndex.get(parentSlug); if (parent) parent.children.push(node); }
@@ -89,122 +86,33 @@ if (hasData) {
 <nav class="mega-menu" aria-label="Product categories">
   <div class="mega-menu-inner">
     <a href="/productss" class="mega-menu-all">All Products</a>
-
     {tree.map((top) => (
       <div class="mega-menu-item">
-        <a href={`/productss?category=${top.slug}`} class="mega-menu-trigger" data-top-slug={top.slug}>
+        <a href={`/productss?category=${top.slug}`} class="mega-menu-trigger">
           {top.name}
           <span class="mega-arrow">▾</span>
         </a>
-
-        <div class="mega-dropdown" data-dropdown={top.slug}>
+        <div class="mega-dropdown">
           <div class="mega-panel">
-            {/* 左栏 */}
+            <!-- 左栏: 二级分类 -->
             <div class="mega-col mega-col-left">
               <div class="mega-col-title">Categories</div>
               {top.children.map((child, ci) => (
-                <a href={`/productss?category=${child.slug}`}
-                   class={`mega-left-item ${ci === 0 ? 'is-active' : ''}`}
-                   data-child-slug={child.slug} data-parent-slug={top.slug}>
-                  {child.name}
-                </a>
-              ))}
-            </div>
-
-            {/* 中栏 */}
-            <div class="mega-col mega-col-mid">
-              {top.children.map((child) => (
-                <div class="mega-mid-group" data-mid-group={`${top.slug}-${child.slug}`}>
-                  <div class="mega-col-title">{child.name}</div>
-                  {child.children && child.children.map((grand) => (
-                    <a href={`/productss?category=${grand.slug}`} class="mega-mid-link">{grand.name}</a>
-                  ))}
-                </div>
-              ))}
-            </div>
-
-            {/* 右栏 */}
-            <div class="mega-col mega-col-right">
-              {top.children.map((child) => {
-                const featured = featuredMap[child.slug] || [];
-                return (
-                  <div class="mega-right-group" data-right-group={`${top.slug}-${child.slug}`}>
-                    <div class="mega-col-title">Featured</div>
-                    {featured.length > 0 ? featured.map((item) => (
-                      <div class="mega-featured-item">
-                        <div class="mega-featured-img">
-                          <div class="mega-featured-placeholder">{item.title.charAt(0)}</div>
-                        </div>
-                        <span class="mega-featured-title">{item.title}</span>
-                      </div>
-                    )) : <p class="mega-featured-empty">Products coming soon</p>}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-    ))}
-  </div>
-</nav>
-
-<script>
-document.addEventListener('DOMContentLoaded',function(){
-  document.querySelectorAll('.mega-menu-item').forEach(item=>{
-    const t=item.querySelector('.mega-menu-trigger'),d=item.querySelector('.mega-dropdown');
-    if(!t||!d)return;const s=t.dataset.topSlug;
-    t.addEventListener('mouseenter',function(){
-      document.querySelectorAll('.mega-dropdown.open').forEach(x=>{if(x!==d)x.classList.remove('open')});
-      d.classList.add('open');
-      const f=item.querySelector('.mega-left-item');if(f)h(s,f.dataset.childSlug);
-    });
-    item.querySelectorAll('.mega-left-item').forEach(x=>{
-      x.addEventListener('mouseenter',function(){h(s,this.dataset.childSlug)});
-    });
-    item.addEventListener('mouseleave',function(e){
-      if(!e.relatedTarget||!item.contains(e.relatedTarget))d.classList.remove('open');
-    });
-  });
-  function h(t,c){
-    document.querySelectorAll('.mega-left-item').forEach(x=>x.classList.remove('is-active'));
-    document.querySelectorAll(`.mega-left-item[data-child-slug="${c}"]`).forEach(x=>{if(x.dataset.parentSlug===t)x.classList.add('is-active')});
-    document.querySelectorAll('.mega-mid-group,.mega-right-group').forEach(x=>x.classList.remove('is-visible'));
-    document.querySelectorAll(`[data-mid-group="${t}-${c}"],[data-right-group="${t}-${c}"]`).forEach(x=>x.classList.add('is-visible'));
-  }
-});
-</script>
-
-<style>
-.mega-menu{background:var(--color-bg);border-bottom:1px solid var(--color-border-subtle);position:relative;z-index:99}
-.mega-menu-inner{max-width:var(--wide-width);margin:0 auto;padding:0 var(--spacing-6);display:flex;align-items:center;gap:0;overflow-x:auto;scrollbar-width:none}
-.mega-menu-inner::-webkit-scrollbar{display:none}
-.mega-menu-all{display:inline-flex;align-items:center;gap:var(--spacing-2);padding:.6rem 1rem;font-size:var(--font-size-sm);font-weight:600;color:var(--color-accent);text-decoration:none;white-space:nowrap;border-bottom:2px solid var(--color-accent);transition:color var(--transition-fast);flex-shrink:0}
-.mega-menu-all:hover{color:var(--color-text)}
-.mega-menu-item{position:relative;flex-shrink:0}
-.mega-menu-trigger{display:inline-flex;align-items:center;gap:.3rem;padding:.6rem 1rem;font-size:var(--font-size-sm);font-weight:500;color:var(--color-text-secondary);text-decoration:none;white-space:nowrap;border-bottom:2px solid transparent;transition:all var(--transition-fast);cursor:pointer}
-.mega-menu-trigger:hover{color:var(--color-text);border-bottom-color:var(--color-accent)}
-.mega-arrow{font-size:.65rem;color:var(--color-text-tertiary);transition:transform var(--transition-fast)}
-.mega-menu-item:hover .mega-arrow{transform:rotate(180deg)}
-.mega-dropdown{position:absolute;top:100%;left:0;width:820px;max-width:90vw;background:var(--color-bg);border:1px solid var(--color-border-subtle);border-radius:0 0 var(--radius-lg) var(--radius-lg);box-shadow:0 12px 40px rgba(0,0,0,.1);opacity:0;visibility:hidden;transform:translateY(-6px);transition:all .2s ease;z-index:200}
-.mega-dropdown.open{opacity:1;visibility:visible;transform:translateY(0)}
-.mega-panel{display:grid;grid-template-columns:1fr 2fr 2fr;min-height:280px}
-.mega-col{padding:1rem 0}
-.mega-col-title{padding:.3rem 1rem;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--color-muted);margin-bottom:.25rem}
-.mega-col-left{background:var(--color-surface);border-right:1px solid var(--color-border-subtle)}
-.mega-left-item{display:block;padding:.45rem 1rem;font-size:var(--font-size-sm);font-weight:500;color:var(--color-text-secondary);text-decoration:none;transition:all var(--transition-fast);cursor:pointer;border-right:2px solid transparent}
-.mega-left-item:hover,.mega-left-item.is-active{color:var(--color-text);background:var(--color-bg);border-right-color:var(--color-accent);font-weight:600}
-.mega-col-mid{border-right:1px solid var(--color-border-subtle)}
-.mega-mid-group{display:none}.mega-mid-group.is-visible{display:block}
-.mega-mid-link{display:block;padding:.35rem 1rem;font-size:var(--font-size-sm);color:var(--color-text);text-decoration:none;border-radius:4px;margin:0 .5rem}
-.mega-mid-link:hover{background:var(--color-surface);color:var(--color-accent)}
-.mega-right-group{display:none}.mega-right-group.is-visible{display:block}
-.mega-featured-item{display:flex;align-items:center;gap:.75rem;padding:.4rem 1rem;text-decoration:none;color:inherit;border-radius:4px;margin:0 .5rem}
-.mega-featured-item:hover{background:var(--color-surface)}
-.mega-featured-img{width:48px;height:48px;border-radius:6px;overflow:hidden;flex-shrink:0;background:var(--color-surface)}
-.mega-featured-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:700;color:var(--color-muted);background:var(--color-border-subtle)}
-.mega-featured-title{font-size:var(--font-size-sm);font-weight:500;color:var(--color-text)}
-.mega-featured-empty{padding:.4rem 1rem;font-size:var(--font-size-sm);color:var(--color-muted)}
-@media(max-width:900px){.mega-dropdown{width:600px}.mega-panel{grid-template-columns:1fr 1fr}.mega-col-right{display:none}}
-@media(max-width:768px){.mega-menu{display:none}}
-</style>
+                <div class="mega-left-wrapper">
+                  <a href={`/productss?category=${child.slug}`} class={`mega-left-item ${ci === 0 ? 'is-active' : ''}`}>
+                    {child.name}
+                  </a>
+                  <!-- 中栏和右栏跟随左栏项 hover -->
+                  <div class="mega-content-panel">
+                    <div class="mega-col mega-col-mid">
+                      <div class="mega-col-title">{child.name}</div>
+                      {child.children && child.children.map((grand) => (
+                        <a href={`/productss?category=${grand.slug}`} class="mega-mid-link">{grand.name}</a>
+                      ))}
+                    </div>
+                    <div class="mega-col mega-col-right">
+                      <div class="mega-col-title">Featured</div>
+                      {(featuredMap[child.slug] || []).length > 0 ? (featuredMap[child.slug] || []).map((item) => (
+                        <div class="mega-featured-item">
+                          <div class="mega-featured-img">
+                            <div class

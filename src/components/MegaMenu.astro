@@ -1,53 +1,81 @@
 ---
-const menuItems = [
-  {
-    slug: "company-news",
-    name: "Company News",
-    isParent: true,
-    children: [
-      { slug: "industry-trends", name: "Industry Trends" },
-      { slug: "company-events", name: "Company Events" }
-    ]
-  },
-  {
-    slug: "industry-trends",
-    name: "Industry Trends",
-    isParent: false,
-    children: [
-      { slug: "ai-technology", name: "AI Technology" },
-      { slug: "market-analysis", name: "Market Analysis" }
-    ]
-  },
-  {
-    slug: "company-events",
-    name: "Company Events",
-    isParent: false,
-    children: [
-      { slug: "annual-meeting", name: "Annual Meeting" },
-      { slug: "team-building", name: "Team Building" }
-    ]
+import { getEmDashCollection } from "emdash";
+
+const { entries } = await getEmDashCollection("productss");
+const products = entries || [];
+
+type CatItem = {
+  slug: string;
+  name: string;
+  children: { slug: string; name: string }[];
+  productCount: number;
+};
+
+const catMap = new Map<string, CatItem>();
+const leafMap = new Map<string, string[]>();
+
+for (const p of products) {
+  const raw = p.data?.category_slugs;
+  if (!raw) continue;
+  let slugs: string[];
+  try { slugs = JSON.parse(typeof raw === "string" ? raw : JSON.stringify(raw)); }
+  catch { continue; }
+  if (!Array.isArray(slugs) || slugs.length === 0) continue;
+
+  const l1 = slugs[0];
+  if (!catMap.has(l1)) {
+    catMap.set(l1, { slug: l1, name: toName(l1), children: [], productCount: 0 });
   }
-];
+  catMap.get(l1)!.productCount++;
+
+  if (slugs.length >= 2) {
+    const l2 = slugs[1];
+    const parent = catMap.get(l1)!;
+    if (!parent.children.find(c => c.slug === l2)) {
+      parent.children.push({ slug: l2, name: toName(l2) });
+    }
+    if (slugs.length >= 3) {
+      const l3 = slugs[2];
+      if (!leafMap.has(l2)) leafMap.set(l2, []);
+      const list = leafMap.get(l2)!;
+      if (!list.includes(l3)) list.push(l3);
+    }
+  }
+}
+
+function toName(slug: string): string {
+  return slug.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
+
+const menuItems: { slug: string; name: string; isParent: boolean; children: { slug: string; name: string }[] }[] = [];
+
+for (const [slug, item] of catMap) {
+  menuItems.push({ slug, name: item.name, isParent: true, children: item.children });
+  for (const child of item.children) {
+    const leafChildren = leafMap.get(child.slug) || [];
+    if (leafChildren.length > 0) {
+      menuItems.push({ slug: child.slug, name: child.name, isParent: false, children: leafChildren.map(s => ({ slug: s, name: toName(s) })) });
+    }
+  }
+}
 ---
 
 <nav class="cat-menu">
   <div class="cat-inner">
     <a href="/productss" class="cat-all">All Products</a>
-    
     {menuItems.map((item) => (
       <div class="cat-item">
         <a href={"/productss?category="+item.slug} class="cat-trigger">
           {item.name}
-          <span class="arrow">&#9662;</span>
+          {item.children.length > 0 && <span class="arrow">&#9662;</span>}
         </a>
-        
-        <div class="cat-drop">
-          {item.children.map((child) => (
-            <a href={"/productss?category="+child.slug} class="cat-sub-link">
-              {child.name}
-            </a>
-          ))}
-        </div>
+        {item.children.length > 0 && (
+          <div class="cat-drop">
+            {item.children.map((child) => (
+              <a href={"/productss?category="+child.slug} class="cat-sub-link">{child.name}</a>
+            ))}
+          </div>
+        )}
       </div>
     ))}
   </div>
@@ -55,20 +83,17 @@ const menuItems = [
 
 <style>
 .cat-menu{background:#fff;border-bottom:1px solid #ddd;position:relative;z-index:9999}
-.cat-inner{max-width:1200px;margin:0 auto;padding:0 24px;display:flex;align-items:center;gap:0}
-.cat-all{display:flex;align-items:center;padding:10px 16px;font-size:14px;font-weight:600;color:#06c;text-decoration:none;border-bottom:2px solid #06c;flex-shrink:0}
+.cat-inner{max-width:1200px;margin:0 auto;padding:0 24px;display:flex;align-items:center;gap:0;overflow-x:auto;scrollbar-width:none}
+.cat-inner::-webkit-scrollbar{display:none}
+.cat-all{display:flex;align-items:center;padding:10px 16px;font-size:14px;font-weight:600;color:#06c;text-decoration:none;border-bottom:2px solid #06c;flex-shrink:0;white-space:nowrap}
 .cat-item{position:relative;flex-shrink:0}
 .cat-trigger{display:flex;align-items:center;gap:4px;padding:10px 16px;font-size:14px;font-weight:500;color:#525252;text-decoration:none;border-bottom:2px solid transparent;white-space:nowrap}
 .cat-trigger:hover{color:#000;border-color:#06c}
 .arrow{font-size:10px;transition:transform .2s}
 .cat-item:hover .arrow{transform:rotate(180deg)}
-
-/* 下拉面板 */
-.cat-drop{position:absolute;top:100%;left:0;min-width:180px;background:#fff;border:1px solid #ddd;border-radius:0 0 8px 8px;box-shadow:0 8px 32px rgba(0,0,0,.15);padding:8px 0;display:none}
+.cat-drop{position:absolute;top:100%;left:0;min-width:180px;background:#fff;border:1px solid #ddd;border-radius:0 0 8px 8px;box-shadow:0 8px 32px rgba(0,0,0,.15);padding:8px 0;display:none;z-index:200}
 .cat-item:hover .cat-drop{display:block}
-
 .cat-sub-link{display:block;padding:10px 16px;font-size:13px;color:#333;text-decoration:none;white-space:nowrap}
 .cat-sub-link:hover{background:#f5f5f5;color:#06c}
-
 @media(max-width:768px){.cat-menu{display:none}}
 </style>

@@ -1,85 +1,34 @@
 ---
-import { getEmDashCollection } from "emdash";
+import { getTaxonomyTerms } from "emdash";
 
-const { entries } = await getEmDashCollection("productss");
-const products = entries || [];
+// 动态获取 product 分类树（EmDash taxonomy 自带层级结构）
+const termTree = await getTaxonomyTerms("product");
 
-// 从所有产品的 category_slugs 中提取完整分类树
-// category_slugs 格式: ["company-news", "company-industry", "ai-technology"]
-// 代表: 一级/company-news → 二级/company-industry → 三级/ai-technology
-
-type CatItem = {
+// 构建一级菜单项 + 有子级的二级菜单项
+type MenuItem = {
   slug: string;
   name: string;
   children: { slug: string; name: string }[];
-  productCount: number;
 };
 
-const catMap = new Map<string, CatItem>();
-const leafMap = new Map<string, string[]>(); // parentSlug -> [child slugs]
+const menuItems: MenuItem[] = [];
 
-for (const p of products) {
-  const raw = p.data?.category_slugs;
-  if (!raw) continue;
-  let slugs: string[];
-  try { slugs = JSON.parse(typeof raw === "string" ? raw : JSON.stringify(raw)); }
-  catch { continue; }
-  if (!Array.isArray(slugs) || slugs.length === 0) continue;
+for (const term of termTree) {
+  // 一级分类 → 菜单项，子项为二级分类
+  const topItem: MenuItem = {
+    slug: term.slug,
+    name: term.label,
+    children: term.children.map(c => ({ slug: c.slug, name: c.label })),
+  };
+  menuItems.push(topItem);
 
-  // 第一层是一级分类
-  const l1 = slugs[0];
-  if (!catMap.has(l1)) {
-    catMap.set(l1, { slug: l1, name: toName(l1), children: [], productCount: 0 });
-  }
-  catMap.get(l1)!.productCount++;
-
-  // 第二层是二级分类
-  if (slugs.length >= 2) {
-    const l2 = slugs[1];
-    const parent = catMap.get(l1)!;
-    if (!parent.children.find(c => c.slug === l2)) {
-      parent.children.push({ slug: l2, name: toName(l2) });
-    }
-    // 记录三级分类归属
-    if (slugs.length >= 3) {
-      const l3 = slugs[2];
-      if (!leafMap.has(l2)) leafMap.set(l2, []);
-      const list = leafMap.get(l2)!;
-      if (!list.includes(l3)) list.push(l3);
-    }
-  }
-}
-
-function toName(slug: string): string {
-  return slug.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-}
-
-// 构建菜单: 一级分类 + 有子级的二级分类独立为菜单项
-const menuItems: {
-  slug: string;
-  name: string;
-  isParent: boolean;
-  children: { slug: string; name: string }[];
-}[] = [];
-
-for (const [slug, item] of catMap) {
-  // 一级分类
-  menuItems.push({
-    slug,
-    name: item.name,
-    isParent: true,
-    children: item.children,
-  });
-  
-  // 有三级分类的二级分类也作为独立菜单项
-  for (const child of item.children) {
-    const leafChildren = leafMap.get(child.slug) || [];
-    if (leafChildren.length > 0) {
+  // 二级分类如果有三级子项 → 也作为独立菜单项
+  for (const child of term.children) {
+    if (child.children.length > 0) {
       menuItems.push({
         slug: child.slug,
-        name: child.name,
-        isParent: false,
-        children: leafChildren.map(s => ({ slug: s, name: toName(s) })),
+        name: child.label,
+        children: child.children.map(gc => ({ slug: gc.slug, name: gc.label })),
       });
     }
   }

@@ -19,33 +19,21 @@ const tree = [
       <div class="mega-item">
         <a href={"/productss?category="+top.slug} class="mega-trigger">{top.name} <span class="arrow">&#9662;</span></a>
         
+        <!-- 一级下拉：显示所有二级分类 -->
         <div class="mega-drop">
-          <div class="mega-grid">
-            <div class="col-left">
-              <div class="col-title">Categories</div>
-              {top.children.map((child) => (
-                <div class="left-row">
-                  <a href={"/productss?category="+child.slug} class="left-name">{child.name}</a>
-                  
-                  <div class="sub-panel">
-                    <div class="col-mid">
-                      <div class="col-title">{child.name}</div>
-                      {child.children.map((g) => (
-                        <a href={"/productss?category="+g.slug} class="mid-link">{g.name}</a>
-                      ))}
-                    </div>
-                    <div class="col-right">
-                      <div class="col-title">Featured</div>
-                      <div class="feat-item">
-                        <div class="feat-img">📦</div>
-                        <span>Sample Product</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
+          {top.children.map((child) => (
+            <div class="sub-item">
+              <a href={"/productss?category="+child.slug} class="sub-trigger">{child.name} <span class="arrow">&#9662;</span></a>
+              
+              <!-- 二级下拉：显示三级分类 -->
+              <div class="sub-drop">
+                <div class="sub-title">{child.name}</div>
+                {child.children.map((g) => (
+                  <a href={"/productss?category="+g.slug} class="sub-link">{g.name}</a>
+                ))}
+              </div>
             </div>
-          </div>
+          ))}
         </div>
       </div>
     ))}
@@ -61,23 +49,24 @@ const tree = [
 .mega-trigger:hover{color:#000;border-color:#06c}
 .arrow{font-size:10px;transition:transform .2s}
 .mega-item:hover .arrow{transform:rotate(180deg)}
-.mega-drop{position:absolute;top:100%;left:0;width:800px;background:#fff;border:1px solid #ddd;border-radius:0 0 8px 8px;box-shadow:0 8px 32px rgba(0,0,0,.15);padding:16px;display:none}
+
+/* 一级下拉面板 */
+.mega-drop{position:absolute;top:100%;left:0;width:200px;background:#fff;border:1px solid #ddd;border-radius:0 0 8px 8px;box-shadow:0 8px 32px rgba(0,0,0,.15);padding:8px 0;display:none}
 .mega-item:hover .mega-drop{display:block}
-.mega-grid{display:grid;grid-template-columns:200px 1fr}
-.col-left{background:#f5f5f5;padding:16px;border-right:1px solid #eee}
-.col-title{font-size:11px;text-transform:uppercase;color:#888;margin-bottom:12px;padding:0 8px}
-.left-row{position:relative;margin-bottom:4px}
-.left-name{display:block;padding:8px 12px;font-size:14px;color:#333;text-decoration:none;border-right:3px solid transparent}
-.left-name:hover{background:#fff;border-color:#06c;font-weight:600}
-.sub-panel{position:absolute;top:0;left:200px;width:600px;display:none;grid-template-columns:1fr 1fr;padding:16px;background:#fff;min-height:280px;z-index:100}
-.left-row:hover .sub-panel{display:grid}
-.col-mid{border-right:1px solid #eee;padding-right:16px}
-.mid-link{display:block;padding:8px 12px;font-size:13px;color:#333;text-decoration:none;border-radius:4px;margin:2px 0}
-.mid-link:hover{background:#f0f0f0;color:#06c}
-.col-right{padding-left:16px}
-.feat-item{display:flex;align-items:center;gap:12px;padding:12px;text-decoration:none;color:#333;border-radius:4px}
-.feat-item:hover{background:#f0f0f0}
-.feat-img{width:48px;height:48px;background:#eee;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:20px}
-@media(max-width:900px){.mega-drop{width:600px}.sub-panel{width:400px}}
+
+/* 二级菜单项 */
+.sub-item{position:relative}
+.sub-trigger{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;font-size:14px;color:#333;text-decoration:none}
+.sub-trigger:hover{background:#f5f5f5;color:#06c}
+.sub-item:hover .sub-trigger{background:#f5f5f5}
+
+/* 二级下拉面板（在右侧展开） */
+.sub-drop{position:absolute;top:0;left:100%;width:200px;background:#fff;border:1px solid #ddd;border-radius:0 8px 8px 0;box-shadow:4px 8px 24px rgba(0,0,0,.1);padding:12px;display:none;min-height:150px}
+.sub-item:hover .sub-drop{display:block}
+
+.sub-title{font-size:11px;text-transform:uppercase;color:#888;margin-bottom:12px;padding:0 16px}
+.sub-link{display:block;padding:8px 16px;font-size:13px;color:#333;text-decoration:none}
+.sub-link:hover{background:#f5f5f5;color:#06c}
+
 @media(max-width:768px){.mega-menu{display:none}}
 </style>

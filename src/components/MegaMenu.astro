@@ -1,38 +1,51 @@
 ---
-const tree = [
+const menuItems = [
   {
     slug: "company-news",
     name: "Company News",
+    isParent: true,
     children: [
-      { slug: "industry-trends", name: "Industry Trends", children: [{slug:"ai-technology",name:"AI Technology"},{slug:"market-analysis",name:"Market Analysis"}] },
-      { slug: "company-events", name: "Company Events", children: [{slug:"annual-meeting",name:"Annual Meeting"},{slug:"team-building",name:"Team Building"}] }
+      { slug: "industry-trends", name: "Industry Trends" },
+      { slug: "company-events", name: "Company Events" }
+    ]
+  },
+  {
+    slug: "industry-trends",
+    name: "Industry Trends",
+    isParent: false,
+    children: [
+      { slug: "ai-technology", name: "AI Technology" },
+      { slug: "market-analysis", name: "Market Analysis" }
+    ]
+  },
+  {
+    slug: "company-events",
+    name: "Company Events",
+    isParent: false,
+    children: [
+      { slug: "annual-meeting", name: "Annual Meeting" },
+      { slug: "team-building", name: "Team Building" }
     ]
   }
 ];
 ---
 
-<nav class="mega-menu">
-  <div class="mega-inner">
-    <a href="/productss" class="mega-all">All Products</a>
+<nav class="cat-menu">
+  <div class="cat-inner">
+    <a href="/productss" class="cat-all">All Products</a>
     
-    {tree.map((top) => (
-      <div class="mega-item">
-        <a href={"/productss?category="+top.slug} class="mega-trigger">{top.name} <span class="arrow">&#9662;</span></a>
+    {menuItems.map((item) => (
+      <div class="cat-item">
+        <a href={"/productss?category="+item.slug} class="cat-trigger">
+          {item.name}
+          <span class="arrow">&#9662;</span>
+        </a>
         
-        <!-- 一级下拉：显示所有二级分类 -->
-        <div class="mega-drop">
-          {top.children.map((child) => (
-            <div class="sub-item">
-              <a href={"/productss?category="+child.slug} class="sub-trigger">{child.name} <span class="arrow">&#9662;</span></a>
-              
-              <!-- 二级下拉：显示三级分类 -->
-              <div class="sub-drop">
-                <div class="sub-title">{child.name}</div>
-                {child.children.map((g) => (
-                  <a href={"/productss?category="+g.slug} class="sub-link">{g.name}</a>
-                ))}
-              </div>
-            </div>
+        <div class="cat-drop">
+          {item.children.map((child) => (
+            <a href={"/productss?category="+child.slug} class="cat-sub-link">
+              {child.name}
+            </a>
           ))}
         </div>
       </div>
@@ -41,32 +54,21 @@ const tree = [
 </nav>
 
 <style>
-.mega-menu{background:#fff;border-bottom:1px solid #ddd;position:relative;z-index:9999}
-.mega-inner{max-width:1200px;margin:0 auto;padding:0 24px;display:flex;align-items:center}
-.mega-all{display:flex;align-items:center;padding:10px 16px;font-size:14px;font-weight:600;color:#06c;text-decoration:none;border-bottom:2px solid #06c}
-.mega-item{position:relative}
-.mega-trigger{display:flex;align-items:center;gap:4px;padding:10px 16px;font-size:14px;font-weight:500;color:#525252;text-decoration:none;border-bottom:2px solid transparent}
-.mega-trigger:hover{color:#000;border-color:#06c}
+.cat-menu{background:#fff;border-bottom:1px solid #ddd;position:relative;z-index:9999}
+.cat-inner{max-width:1200px;margin:0 auto;padding:0 24px;display:flex;align-items:center;gap:0}
+.cat-all{display:flex;align-items:center;padding:10px 16px;font-size:14px;font-weight:600;color:#06c;text-decoration:none;border-bottom:2px solid #06c;flex-shrink:0}
+.cat-item{position:relative;flex-shrink:0}
+.cat-trigger{display:flex;align-items:center;gap:4px;padding:10px 16px;font-size:14px;font-weight:500;color:#525252;text-decoration:none;border-bottom:2px solid transparent;white-space:nowrap}
+.cat-trigger:hover{color:#000;border-color:#06c}
 .arrow{font-size:10px;transition:transform .2s}
-.mega-item:hover .arrow{transform:rotate(180deg)}
+.cat-item:hover .arrow{transform:rotate(180deg)}
 
-/* 一级下拉面板 */
-.mega-drop{position:absolute;top:100%;left:0;width:200px;background:#fff;border:1px solid #ddd;border-radius:0 0 8px 8px;box-shadow:0 8px 32px rgba(0,0,0,.15);padding:8px 0;display:none}
-.mega-item:hover .mega-drop{display:block}
+/* 下拉面板 */
+.cat-drop{position:absolute;top:100%;left:0;min-width:180px;background:#fff;border:1px solid #ddd;border-radius:0 0 8px 8px;box-shadow:0 8px 32px rgba(0,0,0,.15);padding:8px 0;display:none}
+.cat-item:hover .cat-drop{display:block}
 
-/* 二级菜单项 */
-.sub-item{position:relative}
-.sub-trigger{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;font-size:14px;color:#333;text-decoration:none}
-.sub-trigger:hover{background:#f5f5f5;color:#06c}
-.sub-item:hover .sub-trigger{background:#f5f5f5}
+.cat-sub-link{display:block;padding:10px 16px;font-size:13px;color:#333;text-decoration:none;white-space:nowrap}
+.cat-sub-link:hover{background:#f5f5f5;color:#06c}
 
-/* 二级下拉面板（在右侧展开） */
-.sub-drop{position:absolute;top:0;left:100%;width:200px;background:#fff;border:1px solid #ddd;border-radius:0 8px 8px 0;box-shadow:4px 8px 24px rgba(0,0,0,.1);padding:12px;display:none;min-height:150px}
-.sub-item:hover .sub-drop{display:block}
-
-.sub-title{font-size:11px;text-transform:uppercase;color:#888;margin-bottom:12px;padding:0 16px}
-.sub-link{display:block;padding:8px 16px;font-size:13px;color:#333;text-decoration:none}
-.sub-link:hover{background:#f5f5f5;color:#06c}
-
-@media(max-width:768px){.mega-menu{display:none}}
+@media(max-width:768px){.cat-menu{display:none}}
 </style>

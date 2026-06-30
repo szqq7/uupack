@@ -38,28 +38,28 @@ for (const term of termTree) {
   }
 }
 
-function isActive(slug): boolean {
-  return activeCategory === slug || (!activeCategory && slug === "");
+function isActive(s: string): boolean {
+  return activeCategory === s || (!activeCategory && s === "");
 }
 ---
 
-<nav class="cat-menu" id="catMenu">
+<nav class="cat-menu">
   <div class="cat-inner">
     <a href="/productss" class:list={["cat-all", { active: isActive("") }]}>All Products</a>
-    {menuItems.map((item, idx) => (
-      <div class="cat-item"
-           onmouseenter={`showDrop(${idx})`}
-           onmouseleave={`hideDrop(${idx})`}>
+
+    {menuItems.map((item) => (
+      <div class="cat-item">
         <a href={"/productss?category="+item.slug} class:list={["cat-trigger", { active: isActive(item.slug) }]}>
           {item.name}
           <span class="cat-count">({item.count})</span>
-          {(item.children||[]).length>0 && <span class="arrow">&#9662;</span>}
+          {(item.children||[]).length>0 && <span class="arrow">▾</span>}
         </a>
         {(item.children||[]).length>0 && (
-          <div class="cat-drop" data-drop={idx}>
+          <div class="cat-drop">
             {item.children.map(child => (
-              <a href={"/productss?category"+child.slug} class="cat-sub-link">
-                {child.name}<span class="sub-count">({child.count})</span>
+              <a href={"/productss?category="+child.slug} class="cat-sub-link">
+                {child.name}
+                <span class="sub-count">({child.count})</span>
               </a>
             ))}
           </div>
@@ -69,33 +69,141 @@ function isActive(slug): boolean {
   </div>
 </nav>
 
-<script>
-  function showDrop(i){
-    var el=document.querySelector('[data-drop="'+i+'"]');
-    if(el)el.classList.add('open');
-  }
-  function hideDrop(i){
-    var el=document.querySelector('[data-drop="'+i+'"]');
-    if(el)el.classList.remove('open');
-  }
-</script>
+<style is:global>
+/* ====== MegaMenu — 全局样式（is:global 确保不被 Astro 隔离）====== */
 
-<style>
-.cat-menu{background:#fff;border-bottom:1px solid #ddd;position:relative;z-index:9999}
-.cat-inner{max-width:1200px;margin:0 auto;padding:0 24px;display:flex;align-items:center;gap:0;overflow-x:auto;scrollbar-width:none}
-.cat-inner::-webkit-scrollbar{display:none}
-.cat-all{display:flex;align-items:center;gap:6px;padding:10px 16px;font-size:14px;font-weight:600;color:#06c;text-decoration:none;border-bottom:2px solid transparent;flex-shrink:0;white-space:nowrap}
-.cat-all.active{color:#06c;border-bottom-color:#06c}
-.cat-item{position:relative;flex-shrink:0}
-.cat-trigger{display:flex;align-items:center;gap:6px;padding:10px 16px;font-size:14px;font-weight:500;color:#525252;text-decoration:none;border-bottom:2px solid transparent;white-space:nowrap}
+.cat-menu{
+  background:#fff;
+  border-bottom:1px solid #ddd;
+  position:relative;
+  z-index:99999 !important;
+}
+
+.cat-inner{
+  max-width:1200px;
+  margin:0 auto;
+  padding:0 24px;
+  display:flex;
+  align-items:stretch;
+  gap:0;
+  /* 注意：不能用 overflow-x:auto，它会同时裁剪纵轴溢出，
+     导致 .cat-drop (position:absolute;top:100%) 被裁剪掉 */
+  overflow:visible;
+}
+
+/* All Products */
+.cat-all{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:10px 16px;
+  font-size:14px;
+  font-weight:600;
+  color:#06c;
+  text-decoration:none;
+  border-bottom:2px solid transparent;
+  flex-shrink:0;
+  white-space:nowrap;
+}
+
+.cat-all.active,.cat-all:hover{color:#06c;border-bottom-color:#06c}
+
+/* 菜单项容器 — 关键：position relative + 不裁剪溢出 */
+.cat-item{
+  position:relative !important;
+  display:inline-flex;
+  flex-shrink:0;
+  overflow:visible !important;
+}
+
+.cat-trigger{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:10px 16px;
+  font-size:14px;
+  font-weight:500;
+  color:#525252;
+  text-decoration:none;
+  border-bottom:2px solid transparent;
+  white-space:nowrap;
+  cursor:pointer;
+}
+
 .cat-trigger:hover{color:#000;border-color:#06c}
 .cat-trigger.active{color:#06c;border-color:#06c;font-weight:600}
-.cat-count{font-size:12px;color:#999}.cat-trigger:hover .cat-count,.cat-trigger.active .cat-count{color:#06c}
-.arrow{font-size:10px;transition:transform .2s}.cat-item:hover .arrow{transform:rotate(180deg)}
-.cat-drop{position:absolute;top:100%;left:0;min-width:200px;background:#fff;border:1px solid #ddd;border-radius:0 0 8px 8px;box-shadow:0 8px 32px rgba(0,0,0,.15);padding:8px 0;display:none;z-index:10000;pointer-events:auto}
-.cat-drop.open{display:block}
-.cat-sub-link{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 16px;font-size:13px;color:#333;text-decoration:none;white-space:nowrap}
-.cat-sub-link:hover{background:#f5f5f5;color:#06c}
-.sub-count{font-size:11px;color:#999}
+.cat-count{font-size:12px;color:#999;flex-shrink:0}
+.cat-trigger.active .cat-count{color:#06c}
+.arrow{font-size:11px;transition:transform .15s;flex-shrink:0}
+
+/* ====== 下拉面板 ====== */
+.cat-drop{
+  position:absolute !important;
+  top:100% !important;
+  left:0 !important;
+  min-width:220px;
+  background:#fff;
+  border:1px solid #d0d0d0;
+  border-radius:0 0 8px 8px;
+  box-shadow:0 12px 40px rgba(0,0,0,.18);
+  padding:8px 0;
+  z-index:9999999 !important;
+  pointer-events:auto;
+  opacity:0;
+  visibility:hidden;
+  transform:translateY(-4px);
+  transition:opacity .15s ease, transform .15s ease, visibility 0s .15s;
+}
+
+/* hover 显示下拉 */
+.cat-item:hover > .cat-drop{
+  opacity:1 !important;
+  visibility:visible !important;
+  transform:translateY(0) !important;
+  display:block !important;
+}
+
+.cat-sub-link{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 20px;
+  font-size:13px;
+  color:#444;
+  text-decoration:none;
+  white-space:nowrap;
+}
+
+.cat-sub-link:hover{background:#f0f6ff;color:#06c}
+.sub-count{font-size:11px;color:#aaa;flex-shrink:0}
+
+.cat-item:hover .arrow{transform:rotate(180deg)}
+
 @media(max-width:768px){.cat-menu{display:none}}
 </style>
+
+<script define:vars={{menuItems}}>
+window.__megaMenuInit = function() {
+  document.querySelectorAll('.cat-item').forEach(function(item) {
+    var drop = item.querySelector('.cat-drop');
+    if (!drop) return;
+    var trigger = item.querySelector('.cat-trigger');
+    trigger.addEventListener('mouseenter', function() {
+      drop.style.opacity = '1';
+      drop.style.visibility = 'visible';
+      drop.style.transform = 'translateY(0)';
+    });
+    item.addEventListener('mouseleave', function() {
+      drop.style.opacity = '0';
+      drop.style.visibility = 'hidden';
+      drop.style.transform = 'translateY(-4px)';
+    });
+  });
+};
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', window.__megaMenuInit);
+} else {
+  window.__megaMenuInit();
+}
+</script>

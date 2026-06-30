@@ -1,23 +1,30 @@
 ---
-import { getEmDashCollection } from "emdash";
+import { getEmDashCollection, getEmDashEntry } from "emdash";
 import Base from "../../layouts/Base.astro";
 
 const { entries } = await getEmDashCollection("productss");
-const products = entries || [];
+const rawProducts = entries || [];
+
+// 用 getEmDashEntry 获取每个产品的 terms（EmDash 原生分类关联）
+const products = await Promise.all(
+  rawProducts.map(async (p) => {
+    const full = await getEmDashEntry("productss", p.slug);
+    return {
+      ...p,
+      _termSlugs: full?.terms?.product || [],
+    };
+  })
+);
+
+const debugFirst = products[0];
 
 const url = new URL(Astro.request.url);
 const selectedCategory = url.searchParams.get("category");
 
 const filteredProducts = selectedCategory
   ? products.filter((p) => {
-      try {
-        const raw = p.data?.category_slugs;
-        if (!raw) return false;
-        const slugs = JSON.parse(typeof raw === "string" ? raw : JSON.stringify(raw));
-        return Array.isArray(slugs) && slugs.includes(selectedCategory);
-      } catch {
-        return false;
-      }
+      const slugs = p._termSlugs || [];
+      return slugs.includes(selectedCategory);
     })
   : products;
 
@@ -27,8 +34,7 @@ function getFirstImage(entry) {
   try {
     if (!entry?.data?.picture_json) return "";
     const raw = typeof entry.data.picture_json === "string"
-      ? entry.data.picture_json
-      : JSON.stringify(entry.data.picture_json);
+      ? entry.data.picture_json : JSON.stringify(entry.data.picture_json);
     if (!raw || raw === "null" || raw === "{}") return "";
     const parsed = JSON.parse(raw);
     const pics = Array.isArray(parsed) ? parsed : [parsed];
@@ -38,6 +44,15 @@ function getFirstImage(entry) {
 ---
 
 <Base title="Products">
+  <div style="background:#ffe0b0;padding:10px;font-size:11px;font-family:monospace;margin-bottom:1rem;">
+    <strong>DEBUG:</strong>
+    | selected=<b>{selectedCategory || "(none)"}</b>
+    | total=<b>{products.length}</b>
+    | filtered=<b>{filteredProducts.length}</b><br>
+    <strong>sample _termSlugs:</strong> <code>{JSON.stringify(debugFirst?._termSlugs)}</code><br>
+    <strong>sample title:</strong> <code>{debugFirst?.data?.title}</code>
+  </div>
+
   <div class="products-page">
     <header class="products-header">
       <h1 class="page-title">Products</h1>

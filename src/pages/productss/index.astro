@@ -1,23 +1,29 @@
 ---
-import { getEmDashCollection } from "emdash";
+import { getEmDashCollection, getEmDashEntry } from "emdash";
 import Base from "../../layouts/Base.astro";
 
 const { entries } = await getEmDashCollection("productss");
-const products = entries || [];
 
+// 获取所有产品的完整信息（含 terms.product）
+const productList = [];
+for (const e of (entries || [])) {
+  try {
+    const full = await getEmDashEntry("productss", e.slug);
+    productList.push(full.entry || e);
+  } catch { productList.push(e); }
+}
+
+// 读取 URL category 参数
 const url = new URL(Astro.request.url);
 const selectedCategory = url.searchParams.get("category");
 
+// 根据 category 过滤产品（用 terms.product）
 const filteredProducts = selectedCategory
-  ? products.filter((p) => {
-      try {
-        const raw = p.data?.category_slugs;
-        if (!raw) return false;
-        const slugs = JSON.parse(typeof raw === "string" ? raw : JSON.stringify(raw));
-        return Array.isArray(slugs) && slugs.includes(selectedCategory);
-      } catch { return false; }
+  ? productList.filter((p) => {
+      const slugs = (p?.terms?.product || []).map((t: any) => t.slug);
+      return slugs.includes(selectedCategory);
     })
-  : products;
+  : productList;
 
 const displayProducts = filteredProducts.slice(0, 12);
 
@@ -39,22 +45,34 @@ function getFirstImage(entry) {
   <div class="products-page">
     <header class="products-header">
       <h1 class="page-title">Products</h1>
-      <p class="page-subtitle">{selectedCategory ? "已筛选: " + selectedCategory + " (" + filteredProducts.length + ")" : "共 " + products.length + " 个产品"}</p>
+      <p class="page-subtitle">
+        {selectedCategory ? "已筛选: " + selectedCategory + " (" + filteredProducts.length + ")" : "共 " + productList.length + " 个产品"}
+      </p>
     </header>
+
     <div class="products-grid">
       {displayProducts.map((product) => {
         const imgUrl = getFirstImage(product);
         return (
           <a href={`/productss/${product.slug}`} class="product-card">
             <div class="product-image">
-              {imgUrl ? <img src={imgUrl} alt={product.data?.title || ""} loading="lazy" /> : <div class="no-image">No Image</div>}
+              {imgUrl ? (
+                <img src={imgUrl} alt={product.data?.title || ""} loading="lazy" />
+              ) : (
+                <div class="no-image">No Image</div>
+              )}
             </div>
             <h3 class="product-title">{product.data?.title}</h3>
           </a>
         );
       })}
     </div>
-    {displayProducts.length === 0 && <div class="empty-state"><p>{selectedCategory ? "此分类下暂无产品" : "暂无产品"}</p></div>}
+
+    {displayProducts.length === 0 && (
+      <div class="empty-state">
+        <p>{selectedCategory ? "此分类下暂无产品" : "暂无产品"}</p>
+      </div>
+    )}
   </div>
 </Base>
 

@@ -5,20 +5,17 @@ import Base from "../../layouts/Base.astro";
 const url = new URL(Astro.request.url);
 const selectedCategory = url.searchParams.get("category");
 
-// 先拿全量产品，用于显示和兜底
+// 全量产品
 const { entries: allEntries } = await getEmDashCollection("productss");
 const allProducts = allEntries || [];
 
-// 如果选了分类，用 EmDash 原生 API 按 term slug 查产品
+// 用 EmDash 原生 API 按 term slug 查产品（和菜单 count 一致）
 let filteredProducts = allProducts;
 if (selectedCategory) {
   const matched = await getEntriesByTerm("productss", "product", selectedCategory);
   const matchedIds = new Set(matched.map((m) => m.id));
   filteredProducts = allProducts.filter((p) => matchedIds.has(p.id));
 }
-
-// 调试：看第一个产品的 id 和是否命中
-const debugFirst = allProducts[0];
 
 const displayProducts = filteredProducts.slice(0, 12);
 
@@ -36,15 +33,6 @@ function getFirstImage(entry) {
 ---
 
 <Base title="Products">
-  <div style="background:#ffe0b0;padding:10px;font-size:11px;font-family:monospace;margin-bottom:1rem;">
-    <strong>DEBUG:</strong>
-    | selected=<b>{selectedCategory || "(none)"}</b>
-    | total=<b>{allProducts.length}</b>
-    | filtered=<b>{filteredProducts.length}</b><br>
-    <strong>sample id:</strong> <code>{debugFirst?.id}</code><br>
-    <strong>sample slug:</strong> <code>{debugFirst?.slug}</code>
-  </div>
-
   <div class="products-page">
     <header class="products-header">
       <h1 class="page-title">Products</h1>

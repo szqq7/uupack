@@ -1,28 +1,11 @@
 ---
-import { getTaxonomyTerms, getEmDashCollection } from "emdash";
+import { getTaxonomyTerms } from "emdash";
 
-// 动态获取 product 分类树
 const termTree = await getTaxonomyTerms("product");
 
-// 扫描所有产品，从 category_slugs 统计每个 slug 的产品数
-const { entries } = await getEmDashCollection("productss");
-const countMap = new Map<string, number>();
-for (const p of (entries || [])) {
-  const raw = p.data?.category_slugs;
-  if (!raw) continue;
-  try {
-    const slugs: string[] = JSON.parse(typeof raw === "string" ? raw : JSON.stringify(raw));
-    if (Array.isArray(slugs)) {
-      slugs.forEach((s: string) => countMap.set(s, (countMap.get(s) || 0) + 1));
-    }
-  } catch { /* skip */ }
-}
-
-// 读取当前 URL 的 category 参数
 const url = new URL(Astro.request.url);
 const activeCategory = url.searchParams.get("category") || "";
 
-// 构建菜单项
 type MenuItem = {
   slug: string;
   name: string;
@@ -34,60 +17,49 @@ const menuItems: MenuItem[] = [];
 
 for (const term of termTree) {
   const kids = (term.children || []) as any[];
-  // 一级分类
   menuItems.push({
     slug: term.slug,
     name: term.label,
-    count: countMap.get(term.slug) || 0,
+    count: term.count || 0,
     children: kids.map(c => ({
-      slug: c.slug,
-      name: c.label,
-      count: countMap.get(c.slug) || 0,
+      slug: c.slug, name: c.label, count: c.count || 0,
     })),
   });
-
-  // 二级如果有三级子项 → 也作为独立菜单项
   for (const child of kids) {
     const grandkids = (child.children || []) as any[];
     if (grandkids.length > 0) {
       menuItems.push({
-        slug: child.slug,
-        name: child.label,
-        count: countMap.get(child.slug) || 0,
+        slug: child.slug, name: child.label, count: child.count || 0,
         children: grandkids.map((gc: any) => ({
-          slug: gc.slug,
-          name: gc.label,
-          count: countMap.get(gc.slug) || 0,
+          slug: gc.slug, name: gc.label, count: gc.count || 0,
         })),
       });
     }
   }
 }
 
-function isActive(slug: string): boolean {
-  if (!activeCategory && slug === "") return true;
-  return slug === activeCategory;
+function isActive(slug): boolean {
+  return activeCategory === slug || (!activeCategory && slug === "");
 }
 ---
 
-<nav class="cat-menu">
+<nav class="cat-menu" id="catMenu">
   <div class="cat-inner">
     <a href="/productss" class:list={["cat-all", { active: isActive("") }]}>All Products</a>
-
-    {menuItems.map((item) => (
-      <div class="cat-item">
+    {menuItems.map((item, idx) => (
+      <div class="cat-item"
+           onmouseenter={`showDrop(${idx})`}
+           onmouseleave={`hideDrop(${idx})`}>
         <a href={"/productss?category="+item.slug} class:list={["cat-trigger", { active: isActive(item.slug) }]}>
           {item.name}
           <span class="cat-count">({item.count})</span>
-          {(item.children || []).length > 0 && <span class="arrow">&#9662;</span>}
+          {(item.children||[]).length>0 && <span class="arrow">&#9662;</span>}
         </a>
-
-        {(item.children || []).length > 0 && (
-          <div class="cat-drop">
-            {(item.children || []).map((child) => (
-              <a href={"/productss?category="+child.slug} class="cat-sub-link">
-                {child.name}
-                <span class="sub-count">({child.count})</span>
+        {(item.children||[]).length>0 && (
+          <div class="cat-drop" data-drop={idx}>
+            {item.children.map(child => (
+              <a href={"/productss?category"+child.slug} class="cat-sub-link">
+                {child.name}<span class="sub-count">({child.count})</span>
               </a>
             ))}
           </div>
@@ -96,6 +68,17 @@ function isActive(slug: string): boolean {
     ))}
   </div>
 </nav>
+
+<script>
+  function showDrop(i){
+    var el=document.querySelector('[data-drop="'+i+'"]');
+    if(el)el.classList.add('open');
+  }
+  function hideDrop(i){
+    var el=document.querySelector('[data-drop="'+i+'"]');
+    if(el)el.classList.remove('open');
+  }
+</script>
 
 <style>
 .cat-menu{background:#fff;border-bottom:1px solid #ddd;position:relative;z-index:9999}
@@ -107,13 +90,10 @@ function isActive(slug: string): boolean {
 .cat-trigger{display:flex;align-items:center;gap:6px;padding:10px 16px;font-size:14px;font-weight:500;color:#525252;text-decoration:none;border-bottom:2px solid transparent;white-space:nowrap}
 .cat-trigger:hover{color:#000;border-color:#06c}
 .cat-trigger.active{color:#06c;border-color:#06c;font-weight:600}
-.cat-count{font-size:12px;color:#999}
-.cat-trigger:hover .cat-count{color:#666}
-.cat-trigger.active .cat-count{color:#06c}
-.arrow{font-size:10px;transition:transform .2s}
-.cat-item:hover .arrow{transform:rotate(180deg)}
-.cat-drop{position:absolute;top:100%;left:0;min-width:200px;background:#fff;border:1px solid #ddd;border-radius:0 0 8px 8px;box-shadow:0 8px 32px rgba(0,0,0,.15);padding:8px 0;display:none;z-index:200}
-.cat-item:hover .cat-drop{display:block}
+.cat-count{font-size:12px;color:#999}.cat-trigger:hover .cat-count,.cat-trigger.active .cat-count{color:#06c}
+.arrow{font-size:10px;transition:transform .2s}.cat-item:hover .arrow{transform:rotate(180deg)}
+.cat-drop{position:absolute;top:100%;left:0;min-width:200px;background:#fff;border:1px solid #ddd;border-radius:0 0 8px 8px;box-shadow:0 8px 32px rgba(0,0,0,.15);padding:8px 0;display:none;z-index:10000;pointer-events:auto}
+.cat-drop.open{display:block}
 .cat-sub-link{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 16px;font-size:13px;color:#333;text-decoration:none;white-space:nowrap}
 .cat-sub-link:hover{background:#f5f5f5;color:#06c}
 .sub-count{font-size:11px;color:#999}

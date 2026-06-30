@@ -1,49 +1,49 @@
 ---
-import { getTaxonomyTerms } from "emdash";
+import { getTaxonomyTerms, getEmDashCollection } from "emdash";
 
 // 动态获取 product 分类树
 const termTree = await getTaxonomyTerms("product");
+
+// 扫描所有产品，从 category_slugs 统计每个 slug 的产品数
+const { entries } = await getEmDashCollection("productss");
+const countMap = new Map<string, number>();
+for (const p of (entries || [])) {
+  const raw = p.data?.category_slugs;
+  if (!raw) continue;
+  try {
+    const slugs: string[] = JSON.parse(typeof raw === "string" ? raw : JSON.stringify(raw));
+    if (Array.isArray(slugs)) {
+      slugs.forEach((s: string) => countMap.set(s, (countMap.get(s) || 0) + 1));
+    }
+  } catch { /* skip */ }
+}
 
 // 读取当前 URL 的 category 参数
 const url = new URL(Astro.request.url);
 const activeCategory = url.searchParams.get("category") || "";
 
-// ===== 调试：输出原始数据结构 =====
-const debugInfo = {
-  termTreeCount: termTree.length,
-  firstTerm: termTree[0] ? {
-    slug: termTree[0].slug,
-    label: termTree[0].label,
-    childCount: (termTree[0].children || []).length,
-    children: (termTree[0].children || []).map((c: any) => ({
-      slug: c.slug,
-      label: c.label,
-      grandChildCount: (c.children || []).length,
-    })),
-  } : null,
-  allSlugs: termTree.flatMap((t: any) => [
-    t.slug,
-    ...(t.children || []).map((c: any) => c.slug),
-    ...(t.children || []).flatMap((c: any) => (c.children || []).map((gc: any) => gc.slug)),
-  ]),
-};
-
-// ===== 构建菜单项 =====
+// 构建菜单项
 type MenuItem = {
   slug: string;
   name: string;
-  children: { slug: string; name: string }[];
+  count: number;
+  children: { slug: string; name: string; count: number }[];
 };
 
 const menuItems: MenuItem[] = [];
 
 for (const term of termTree) {
   const kids = (term.children || []) as any[];
-  // 一级分类 → 子项是二级分类（下拉）
+  // 一级分类
   menuItems.push({
     slug: term.slug,
     name: term.label,
-    children: kids.map(c => ({ slug: c.slug, name: c.label })),
+    count: countMap.get(term.slug) || 0,
+    children: kids.map(c => ({
+      slug: c.slug,
+      name: c.label,
+      count: countMap.get(c.slug) || 0,
+    })),
   });
 
   // 二级如果有三级子项 → 也作为独立菜单项
@@ -53,7 +53,12 @@ for (const term of termTree) {
       menuItems.push({
         slug: child.slug,
         name: child.label,
-        children: grandkids.map(gc => ({ slug: gc.slug, name: gc.label })),
+        count: countMap.get(child.slug) || 0,
+        children: grandkids.map((gc: any) => ({
+          slug: gc.slug,
+          name: gc.label,
+          count: countMap.get(gc.slug) || 0,
+        })),
       });
     }
   }
@@ -65,12 +70,6 @@ function isActive(slug: string): boolean {
 }
 ---
 
-<!-- 调试面板 -->
-<div style="background:#ff0;padding:8px;font-size:11px;font-family:monospace;max-height:200px;overflow:auto;margin-bottom:-1px;">
-  <strong>DEBUG termTree:</strong>
-  <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
-</div>
-
 <nav class="cat-menu">
   <div class="cat-inner">
     <a href="/productss" class:list={["cat-all", { active: isActive("") }]}>All Products</a>
@@ -79,6 +78,7 @@ function isActive(slug: string): boolean {
       <div class="cat-item">
         <a href={"/productss?category="+item.slug} class:list={["cat-trigger", { active: isActive(item.slug) }]}>
           {item.name}
+          <span class="cat-count">({item.count})</span>
           {(item.children || []).length > 0 && <span class="arrow">&#9662;</span>}
         </a>
 
@@ -87,6 +87,7 @@ function isActive(slug: string): boolean {
             {(item.children || []).map((child) => (
               <a href={"/productss?category="+child.slug} class="cat-sub-link">
                 {child.name}
+                <span class="sub-count">({child.count})</span>
               </a>
             ))}
           </div>
@@ -100,17 +101,21 @@ function isActive(slug: string): boolean {
 .cat-menu{background:#fff;border-bottom:1px solid #ddd;position:relative;z-index:9999}
 .cat-inner{max-width:1200px;margin:0 auto;padding:0 24px;display:flex;align-items:center;gap:0;overflow-x:auto;scrollbar-width:none}
 .cat-inner::-webkit-scrollbar{display:none}
-.cat-all{display:flex;align-items:center;padding:10px 16px;font-size:14px;font-weight:600;color:#06c;text-decoration:none;border-bottom:2px solid transparent;flex-shrink:0;white-space:nowrap}
+.cat-all{display:flex;align-items:center;gap:6px;padding:10px 16px;font-size:14px;font-weight:600;color:#06c;text-decoration:none;border-bottom:2px solid transparent;flex-shrink:0;white-space:nowrap}
 .cat-all.active{color:#06c;border-bottom-color:#06c}
 .cat-item{position:relative;flex-shrink:0}
-.cat-trigger{display:flex;align-items:center;gap:4px;padding:10px 16px;font-size:14px;font-weight:500;color:#525252;text-decoration:none;border-bottom:2px solid transparent;white-space:nowrap}
+.cat-trigger{display:flex;align-items:center;gap:6px;padding:10px 16px;font-size:14px;font-weight:500;color:#525252;text-decoration:none;border-bottom:2px solid transparent;white-space:nowrap}
 .cat-trigger:hover{color:#000;border-color:#06c}
 .cat-trigger.active{color:#06c;border-color:#06c;font-weight:600}
+.cat-count{font-size:12px;color:#999}
+.cat-trigger:hover .cat-count{color:#666}
+.cat-trigger.active .cat-count{color:#06c}
 .arrow{font-size:10px;transition:transform .2s}
 .cat-item:hover .arrow{transform:rotate(180deg)}
-.cat-drop{position:absolute;top:100%;left:0;min-width:180px;background:#fff;border:1px solid #ddd;border-radius:0 0 8px 8px;box-shadow:0 8px 32px rgba(0,0,0,.15);padding:8px 0;display:none;z-index:200}
+.cat-drop{position:absolute;top:100%;left:0;min-width:200px;background:#fff;border:1px solid #ddd;border-radius:0 0 8px 8px;box-shadow:0 8px 32px rgba(0,0,0,.15);padding:8px 0;display:none;z-index:200}
 .cat-item:hover .cat-drop{display:block}
-.cat-sub-link{display:block;padding:10px 16px;font-size:13px;color:#333;text-decoration:none;white-space:nowrap}
+.cat-sub-link{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 16px;font-size:13px;color:#333;text-decoration:none;white-space:nowrap}
 .cat-sub-link:hover{background:#f5f5f5;color:#06c}
+.sub-count{font-size:11px;color:#999}
 @media(max-width:768px){.cat-menu{display:none}}
 </style>

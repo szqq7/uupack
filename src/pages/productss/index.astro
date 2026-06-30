@@ -1,46 +1,24 @@
 ---
-import { getEmDashCollection, getEmDashEntry } from "emdash";
+import { getEmDashCollection, getEntriesByTerm } from "emdash";
 import Base from "../../layouts/Base.astro";
-
-const { entries } = await getEmDashCollection("productss");
-const rawProducts = entries || [];
-
-// 用 getEmDashEntry 获取每个产品的完整数据（含自定义字段）
-// 已知事实：链路 ① terms.product 是空数组，所以改走链路 ② category_slugs
-const products = await Promise.all(
-  rawProducts.map(async (p) => {
-    const full = await getEmDashEntry("productss", p.slug);
-
-    // 解析 category_slugs：可能是 JSON 字符串，也可能已经是数组
-    let catSlugs: string[] = [];
-    try {
-      const raw = full?.data?.category_slugs;
-      if (raw) {
-        const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
-        catSlugs = Array.isArray(parsed) ? parsed : [];
-      }
-    } catch { /* ignore */ }
-
-    return {
-      ...p,
-      _termSlugs: full?.terms?.product || [],  // 空数组，仅作调试对比
-      _catSlugs: catSlugs,                      // 真正用于过滤的字段
-    };
-  })
-);
-
-const debugFirst = products[0];
 
 const url = new URL(Astro.request.url);
 const selectedCategory = url.searchParams.get("category");
 
-// 过滤：用 category_slugs
-const filteredProducts = selectedCategory
-  ? products.filter((p) => {
-      const slugs = p._catSlugs || [];
-      return slugs.includes(selectedCategory);
-    })
-  : products;
+// 先拿全量产品，用于显示和兜底
+const { entries: allEntries } = await getEmDashCollection("productss");
+const allProducts = allEntries || [];
+
+// 如果选了分类，用 EmDash 原生 API 按 term slug 查产品
+let filteredProducts = allProducts;
+if (selectedCategory) {
+  const matched = await getEntriesByTerm("productss", "product", selectedCategory);
+  const matchedIds = new Set(matched.map((m) => m.id));
+  filteredProducts = allProducts.filter((p) => matchedIds.has(p.id));
+}
+
+// 调试：看第一个产品的 id 和是否命中
+const debugFirst = allProducts[0];
 
 const displayProducts = filteredProducts.slice(0, 12);
 
@@ -58,22 +36,20 @@ function getFirstImage(entry) {
 ---
 
 <Base title="Products">
-  <!-- 调试面板：显示 _catSlugs 原始值和过滤结果 -->
   <div style="background:#ffe0b0;padding:10px;font-size:11px;font-family:monospace;margin-bottom:1rem;">
     <strong>DEBUG:</strong>
     | selected=<b>{selectedCategory || "(none)"}</b>
-    | total=<b>{products.length}</b>
+    | total=<b>{allProducts.length}</b>
     | filtered=<b>{filteredProducts.length}</b><br>
-    <strong>sample _catSlugs:</strong> <code>{JSON.stringify(debugFirst?._catSlugs)}</code><br>
-    <strong>sample _termSlugs:</strong> <code>{JSON.stringify(debugFirst?._termSlugs)}</code><br>
-    <strong>sample title:</strong> <code>{debugFirst?.data?.title}</code>
+    <strong>sample id:</strong> <code>{debugFirst?.id}</code><br>
+    <strong>sample slug:</strong> <code>{debugFirst?.slug}</code>
   </div>
 
   <div class="products-page">
     <header class="products-header">
       <h1 class="page-title">Products</h1>
       <p class="page-subtitle">
-        {selectedCategory ? "已筛选: " + selectedCategory + " (" + filteredProducts.length + ")" : "共 " + products.length + " 个产品"}
+        {selectedCategory ? "已筛选: " + selectedCategory + " (" + filteredProducts.length + ")" : "共 " + allProducts.length + " 个产品"}
       </p>
     </header>
 

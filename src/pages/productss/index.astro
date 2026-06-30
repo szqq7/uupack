@@ -5,13 +5,26 @@ import Base from "../../layouts/Base.astro";
 const { entries } = await getEmDashCollection("productss");
 const rawProducts = entries || [];
 
-// 用 getEmDashEntry 获取每个产品的 terms（EmDash 原生分类关联）
+// 用 getEmDashEntry 获取每个产品的完整数据（含自定义字段）
+// 已知事实：链路 ① terms.product 是空数组，所以改走链路 ② category_slugs
 const products = await Promise.all(
   rawProducts.map(async (p) => {
     const full = await getEmDashEntry("productss", p.slug);
+
+    // 解析 category_slugs：可能是 JSON 字符串，也可能已经是数组
+    let catSlugs: string[] = [];
+    try {
+      const raw = full?.data?.category_slugs;
+      if (raw) {
+        const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+        catSlugs = Array.isArray(parsed) ? parsed : [];
+      }
+    } catch { /* ignore */ }
+
     return {
       ...p,
-      _termSlugs: full?.terms?.product || [],
+      _termSlugs: full?.terms?.product || [],  // 空数组，仅作调试对比
+      _catSlugs: catSlugs,                      // 真正用于过滤的字段
     };
   })
 );
@@ -21,9 +34,10 @@ const debugFirst = products[0];
 const url = new URL(Astro.request.url);
 const selectedCategory = url.searchParams.get("category");
 
+// 过滤：用 category_slugs
 const filteredProducts = selectedCategory
   ? products.filter((p) => {
-      const slugs = p._termSlugs || [];
+      const slugs = p._catSlugs || [];
       return slugs.includes(selectedCategory);
     })
   : products;
@@ -44,11 +58,13 @@ function getFirstImage(entry) {
 ---
 
 <Base title="Products">
+  <!-- 调试面板：显示 _catSlugs 原始值和过滤结果 -->
   <div style="background:#ffe0b0;padding:10px;font-size:11px;font-family:monospace;margin-bottom:1rem;">
     <strong>DEBUG:</strong>
     | selected=<b>{selectedCategory || "(none)"}</b>
     | total=<b>{products.length}</b>
     | filtered=<b>{filteredProducts.length}</b><br>
+    <strong>sample _catSlugs:</strong> <code>{JSON.stringify(debugFirst?._catSlugs)}</code><br>
     <strong>sample _termSlugs:</strong> <code>{JSON.stringify(debugFirst?._termSlugs)}</code><br>
     <strong>sample title:</strong> <code>{debugFirst?.data?.title}</code>
   </div>

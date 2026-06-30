@@ -6,21 +6,33 @@ const { entries } = await getEmDashCollection("productss");
 
 // 获取所有产品的完整信息（含 terms.product）
 const productList = [];
+const debugEntries: any[] = [];
+
 for (const e of (entries || [])) {
   try {
     const full = await getEmDashEntry("productss", e.slug);
-    productList.push(full.entry || e);
-  } catch { productList.push(e); }
+    const entry = full.entry || e;
+    productList.push(entry);
+    if (debugEntries.length < 3) {
+      debugEntries.push({
+        slug: e.slug,
+        title: e.data?.title,
+        hasTerms: !!entry?.terms,
+        termsProduct: entry?.terms?.product,
+        dataKeys: Object.keys(e.data || {}),
+      });
+    }
+  } catch (err) {
+    productList.push(e);
+  }
 }
 
-// 读取 URL category 参数
 const url = new URL(Astro.request.url);
 const selectedCategory = url.searchParams.get("category");
 
-// 根据 category 过滤产品（用 terms.product）
 const filteredProducts = selectedCategory
-  ? productList.filter((p) => {
-      const slugs = (p?.terms?.product || []).map((t: any) => t.slug);
+  ? productList.filter((p: any) => {
+      const slugs = ((p?.terms?.product || []) as any[]).map((t: any) => t.slug);
       return slugs.includes(selectedCategory);
     })
   : productList;
@@ -42,6 +54,11 @@ function getFirstImage(entry) {
 ---
 
 <Base title="Products">
+  <div style="background:#ffe0b0;padding:8px;font-size:11px;font-family:monospace;max-height:200px;overflow:auto;margin-bottom:1rem;">
+    <strong>DEBUG products:</strong> total={productList.length} filtered={filteredProducts.length} selected={selectedCategory || "(none)"}
+    <pre>{JSON.stringify(debugEntries, null, 2)}</pre>
+  </div>
+
   <div class="products-page">
     <header class="products-header">
       <h1 class="page-title">Products</h1>

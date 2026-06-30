@@ -1,266 +1,240 @@
 ---
-import { getEmDashCollection, getEmDashEntry } from "emdash";
+import { getEmDashEntry, getEmDashCollection } from "emdash";
 import Base from "../../layouts/Base.astro";
 
-// ========= 1. 获取所有产品 =========
-const { entries } = await getEmDashCollection("productss");
+const { slug } = Astro.params;
 
-// ========= 2. 逐个查详情拿 terms（9条数据，秒级完成）=========
-const productList = [];
-for (const e of (entries || [])) {
+const full = await getEmDashEntry("productss", slug);
+const p = full || {};
+const data = p?.data || {};
+
+const { entries: allEntries } = await getEmDashCollection("productss");
+const allProducts = (allEntries || []).filter((e) => e.slug !== slug);
+
+const productTerms = (p?.terms?.product || []).map((t: any) =>
+  typeof t === "string" ? t : t?.slug
+).filter(Boolean);
+
+function parseJsonField(raw) {
+  if (!raw) return null;
   try {
-    const full = await getEmDashEntry("productss", e.slug);
-    if (full.entry) productList.push(full.entry);
-    else productList.push(e);
-  } catch { productList.push(e); }
+    return typeof raw === "string" ? JSON.parse(raw) : raw;
+  } catch { return null; }
 }
 
-// ========= 3. 从 terms 统计每个分类的产品数量 =========
-const categoryCounts = new Map();
-productList.forEach(entry => {
-  const terms = entry?.terms?.product || [];
-  terms.forEach(term => {
-    const slug = term.slug;
-    categoryCounts.set(slug, (categoryCounts.get(slug) || 0) + 1);
-  });
-});
-
-// ========= 4. 分类树 =========
-const categoryTree = [
-  {
-    slug: "company-news",
-    name: "Company News",
-    children: [
-      { slug: "company-industry", name: "Industry Trends", children: [
-        { slug: "ai-technology", name: "AI Technology" },
-        { slug: "market-analysis", name: "Market Analysis" }
-      ]},
-      { slug: "company-events", name: "Company Events", children: [
-        { slug: "annual-meeting", name: "Annual Meeting" },
-        { slug: "company-corporates", name: "Company Corporates" },
-        { slug: "company-milestones", name: "Company Milestones" },
-        { slug: "team-building", name: "Team Building" },
-        { slug: "test-news", name: "Test News" }
-      ]}
-    ]
-  }
-];
-
-// ========= 5. 扁平收集所有有子类的节点 =========
-function collectSections(tree) {
-  const result = [];
-  tree.forEach(node => {
-    if (node.children && node.children.length > 0) {
-      result.push({
-        slug: node.slug,
-        name: node.name,
-        children: node.children.map(c => c.slug)
-      });
-      result.push(...collectSections(node.children));
-    }
-  });
-  return result;
+const pictureData = parseJsonField(data.picture_json);
+let mainImage = "";
+const picList = Array.isArray(pictureData) ? pictureData : (pictureData ? [pictureData] : []);
+if (picList.length > 0) {
+  const first = picList[0];
+  mainImage = first?.url || first?.src || (typeof first === "string" ? first : "");
 }
-const sections = collectSections(categoryTree);
 
-// 构建 slug → name 映射
-const slugNameMap = new Map();
-(function walk(nodes) {
-  nodes.forEach(n => {
-    slugNameMap.set(n.slug, n.name);
-    if (n.children) walk(n.children);
-  });
-})(categoryTree);
+const colorData = parseJsonField(data.color_img);
+let colorImages = [];
+if (colorData) {
+  const list = Array.isArray(colorData) ? colorData : [colorData];
+  colorImages = list.map((c) => c?.url || c?.src || (typeof c === "string" ? c : "")).filter(Boolean);
+}
 
-// ========= 6. URL 筛选逻辑 =========
-const url = new URL(Astro.request.url);
-const activeCategories = url.searchParams.getAll("category");
+const topHighlights = data.top_highlights || data.topHighlights || "";
 
-const filteredProducts = activeCategories.length > 0
-  ? productList.filter(entry => {
-      const slugs = (entry?.terms?.product || []).map(t => t.slug);
-      return activeCategories.some(c => slugs.includes(c));
+const itemDetails = parseJsonField(data.item_details);
+let detailsTable = [];
+if (Array.isArray(itemDetails)) {
+  detailsTable = itemDetails;
+} else if (itemDetails && typeof itemDetails === "object") {
+  detailsTable = Object.entries(itemDetails).map(([k, v]) => ({ label: k, value: v }));
+}
+
+function renderMarkdownSimple(md) {
+  if (!md) return "";
+  const escape = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  let html = escape(md);
+  html = html.replace(/^### (.+)$/gm, "<h3>$1</h3>");
+  html = html.replace(/^## (.+)$/gm, "<h2>$1</h2>");
+  html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
+  html = html.replace(/^- (.+)$/gm, "<li>$1</li>");
+  html = html.replace(/(<li>.*<\/li>\n?)+/g, (m) => "<ul>" + m + "</ul>");
+  html = html.split(/\n{2,}/).map((p) => {
+    if (p.startsWith("<h") || p.startsWith("<ul>")) return p;
+    return "<p>" + p.replace(/\n/g, "<br>") + "</p>";
+  }).join("\n");
+  return html;
+}
+
+let related = [];
+if (productTerms.length > 0 && allProducts.length > 0) {
+  const relatedWithTerms = await Promise.all(
+    allProducts.map(async (e) => {
+      try {
+        const f = await getEmDashEntry("productss", e.slug);
+        const terms = (f?.terms?.product || []).map((t: any) =>
+          typeof t === "string" ? t : t?.slug
+        );
+        return { entry: e, terms };
+      } catch { return { entry: e, terms: [] }; }
     })
-  : productList;
-
-// ========= 7. 图片提取 =========
-function getFirstImage(entry) {
-  try {
-    if (!entry?.data?.picture_json) return '';
-    const raw = typeof entry.data.picture_json === 'string'
-      ? entry.data.picture_json
-      : JSON.stringify(entry.data.picture_json);
-    if (!raw || raw === 'null' || raw === '{}') return '';
-    const pics = JSON.parse(raw);
-    const arr = Array.isArray(pics) ? pics : [pics];
-    return arr[0]?.url || arr[0]?.src || arr[0] || '';
-  } catch { return ''; }
+  );
+  related = relatedWithTerms
+    .filter((r: any) => r.terms.some((t: string) => productTerms.includes(t)))
+    .slice(0, 4)
+    .map((r: any) => r.entry);
 }
 ---
 
-<Base title="Products">
-  <div class="products-page">
-    <!-- ===== 左侧筛选栏 ===== -->
-    <aside class="filter-sidebar">
-      
-      <!-- 顶部固定入口 -->
-      <div class="top-entries">
-        <a href="/productss" class={`top-item ${activeCategories.length === 0 ? 'active' : ''}`}>
-          <span>All Products</span>
-          <span class="count">({productList.length})</span>
-        </a>
-        <label class="top-item">
-          <input type="checkbox" disabled />
-          <span>New Arrivals</span>
-          <span class="count">(0)</span>
-        </label>
-        <label class="top-item">
-          <input type="checkbox" disabled />
-          <span>Top Picks</span>
-          <span class="count">(0)</span>
-        </label>
-        <label class="top-item">
-          <input type="checkbox" disabled />
-          <span>Deals &amp; Discounts</span>
-          <span class="count">(0)</span>
-        </label>
-      </div>
+<Base title={data.title || slug} description={data.description || ""}>
+  <article class="product-detail">
+    <div class="gallery">
+      {mainImage ? (
+        <div class="main-image">
+          <img src={mainImage} alt={data.title || ""} />
+        </div>
+      ) : (
+        <div class="main-image no-image">No Image</div>
+      )}
 
-      <!-- 动态分类组 -->
-      {sections.map(section => (
-        <div class="category-block">
-          <span class="cat-title">{section.name}</span>
-          <div class="cat-items">
-            {section.children.map(childSlug => {
-              const childName = slugNameMap.get(childSlug) || childSlug;
-              const count = categoryCounts.get(childSlug) || 0;
-              const checked = activeCategories.includes(childSlug);
-              return (
-                <label class={`cat-item ${checked ? 'active' : ''}`}>
-                  <input type="checkbox" checked={checked} onchange={`toggle('${childSlug}')`} />
-                  <span>{childName}</span>
-                  <span class="count">({count})</span>
-                </label>
-              );
-            })}
+      {picList.length > 1 && (
+        <div class="thumb-list">
+          {picList.slice(0, 5).map((pic, i) => {
+            const url = pic?.url || pic?.src || (typeof pic === "string" ? pic : "");
+            if (!url) return null;
+            return <img src={url} alt={`${data.title} ${i+1}`} class="thumb" />;
+          })}
+        </div>
+      )}
+
+      {colorImages.length > 0 && (
+        <div class="color-list">
+          <div class="color-label">Color Options</div>
+          <div class="color-thumbs">
+            {colorImages.map((url) => (
+              <img src={url} alt="" class="color-thumb" />
+            ))}
           </div>
         </div>
-      ))}
-    </aside>
+      )}
+    </div>
 
-    <!-- ===== 右侧产品网格 ===== -->
-    <main class="products-main">
-      <h1 class="page-title">
-        Products {activeCategories.length > 0 ? `(${filteredProducts.length})` : ''}
-      </h1>
-      <div class="products-grid">
-        {filteredProducts.map(p => {
-          const img = getFirstImage(p);
+    <div class="info">
+      <h1 class="title">{data.title || "未命名产品"}</h1>
+
+      {data.spu && (
+        <div class="meta">
+          <span class="meta-label">Code:</span>
+          <code class="meta-value">{data.spu}</code>
+        </div>
+      )}
+
+      {productTerms.length > 0 && (
+        <div class="breadcrumb-cats">
+          {productTerms.map((t: string) => (
+            <a href={`/productss?category=${t}`} class="cat-pill">{t}</a>
+          ))}
+        </div>
+      )}
+
+      {topHighlights && (
+        <section class="section">
+          <h2 class="section-title">Top Highlights</h2>
+          <div class="markdown" set:html={renderMarkdownSimple(topHighlights)} />
+        </section>
+      )}
+
+      {detailsTable.length > 0 && (
+        <section class="section">
+          <h2 class="section-title">Item Details</h2>
+          <table class="details-table">
+            <tbody>
+              {detailsTable.map((row) => (
+                <tr>
+                  <th>{row.label || row.name || row.key || ""}</th>
+                  <td>{row.value || row.val || ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+    </div>
+  </article>
+
+  {related.length > 0 && (
+    <section class="related">
+      <h2 class="related-title">Related Products</h2>
+      <div class="related-grid">
+        {related.map((r) => {
+          const rpic = parseJsonField(r.data?.picture_json);
+          const rlist = Array.isArray(rpic) ? rpic : (rpic ? [rpic] : []);
+          const rimg = rlist[0]?.url || rlist[0]?.src || "";
           return (
-            <a href={`/productss/${p.slug}`} class="product-card">
-              <div class="product-image">
-                {img
-                  ? <img src={img} alt={p.data?.title || ''} loading="lazy" />
-                  : <div class="no-image">No Image</div>}
-              </div>
-              <h3 class="product-name">{p.data?.title}</h3>
+            <a href={`/productss/${r.slug}`} class="related-card">
+              {rimg ? <img src={rimg} alt={r.data?.title || ""} /> : <div class="no-image">No Image</div>}
+              <h3>{r.data?.title}</h3>
             </a>
           );
         })}
       </div>
-      {filteredProducts.length === 0 && (
-        <div class="empty">No products found</div>
-      )}
-    </main>
-  </div>
-
-  <script is:inline>
-    function toggle(slug) {
-      const u = new URL(location.href);
-      const c = u.searchParams.getAll('category');
-      if (c.includes(slug)) {
-        u.searchParams.delete('category');
-        c.filter(x => x !== slug).forEach(x => u.searchParams.append('category', x));
-      } else {
-        u.searchParams.append('category', slug);
-      }
-      location.href = u.toString();
-    }
-  </script>
+    </section>
+  )}
 </Base>
 
 <style>
-  /* ===== 布局 ===== */
-  .products-page {
-    max-width: 1400px; margin: 0 auto; padding: 2rem;
-    display: grid; grid-template-columns: 260px 1fr; gap: 3rem; align-items: start;
+  .product-detail {
+    max-width: 1280px; margin: 2rem auto; padding: 0 2rem;
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    gap: 3rem; align-items: start;
   }
-  .filter-sidebar { position: sticky; top: 2rem; height: fit-content; }
+  .gallery { position: sticky; top: 2rem; }
+  .main-image {
+    aspect-ratio: 1; background: #fafafa; border: 1px solid #eee; border-radius: 12px;
+    overflow: hidden; display: flex; align-items: center; justify-content: center;
+  }
+  .main-image img { width: 100%; height: 100%; object-fit: contain; padding: 1.5rem; }
+  .main-image.no-image { color: #999; }
+  .thumb-list { display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap; }
+  .thumb { width: 60px; height: 60px; object-fit: contain; border: 1px solid #eee; border-radius: 6px; background: #fafafa; padding: 4px; cursor: pointer; }
+  .color-list { margin-top: 1rem; }
+  .color-label { font-size: 0.85rem; color: #666; margin-bottom: 0.5rem; }
+  .color-thumbs { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .color-thumb { width: 50px; height: 50px; object-fit: cover; border: 1px solid #eee; border-radius: 6px; }
 
-  /* ===== 顶部入口 ===== */
-  .top-entries {
-    border-bottom: 1px solid #e0e0e0; padding-bottom: 0.75rem; margin-bottom: 0.75rem;
+  .info { min-width: 0; }
+  .title { font-size: 1.75rem; font-weight: 700; color: #1a1a1a; margin: 0 0 0.75rem; line-height: 1.3; }
+  .meta { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem; font-size: 0.9rem; }
+  .meta-label { color: #666; }
+  .meta-value { background: #f0f0f0; padding: 2px 8px; border-radius: 4px; font-size: 0.85rem; }
+  .breadcrumb-cats { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.5rem; }
+  .cat-pill {
+    background: #f0f6ff; color: #06c; font-size: 0.8rem;
+    padding: 4px 10px; border-radius: 12px; text-decoration: none;
   }
-  .top-item {
-    display: flex; align-items: center; gap: 0.6rem;
-    padding: 0.5rem 0.25rem; cursor: pointer; font-size: 0.9rem;
-    color: #555; text-decoration: none; border-radius: 4px;
-    transition: all 0.15s;
-  }
-  .top-item:hover { background: #f5f5f5; color: #000; }
-  .top-item.active { color: #000; font-weight: 600; }
-  .top-item input { width: 16px; height: 16px; flex-shrink: 0; cursor: pointer; }
-  .top-item .count { color: #999; font-size: 0.8rem; margin-left: auto; }
+  .cat-pill:hover { background: #06c; color: #fff; }
 
-  /* ===== 分类组 ===== */
-  .category-block { padding: 0.75rem 0; border-bottom: 1px solid #e0e0e0; }
-  .cat-title {
-    display: block; font-size: 0.95rem; font-weight: 700; color: #222;
-    padding: 0.5rem 0.25rem; margin-bottom: 0.5rem;
-  }
-  .cat-items { padding-left: 0.5rem; }
-  .cat-item {
-    display: flex; align-items: center; gap: 0.6rem;
-    padding: 0.4rem 0.25rem; cursor: pointer; font-size: 0.88rem;
-    color: #555; border-radius: 4px; transition: all 0.15s;
-  }
-  .cat-item:hover { background: #f5f5f5; color: #000; }
-  .cat-item.active { color: #000; font-weight: 500; }
-  .cat-item input { width: 16px; height: 16px; flex-shrink: 0; cursor: pointer; }
-  .cat-item .count { color: #999; font-size: 0.8rem; margin-left: auto; }
+  .section { margin-top: 2rem; }
+  .section-title { font-size: 1.1rem; font-weight: 600; color: #1a1a1a; margin: 0 0 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid #eee; }
+  .markdown { font-size: 0.95rem; line-height: 1.7; color: #333; }
+  .markdown h1, .markdown h2, .markdown h3 { margin: 1rem 0 0.5rem; font-weight: 600; }
+  .markdown p { margin: 0.5rem 0; }
+  .markdown ul, .markdown ol { margin: 0.5rem 0; padding-left: 1.5rem; }
+  .markdown strong { font-weight: 700; color: #000; }
 
-  /* ===== 产品网格 ===== */
-  .products-main { min-height: 600px; }
-  .page-title { font-size: 1.5rem; font-weight: 600; margin-bottom: 1.5rem; color: #333; }
-  .products-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; }
-  .product-card {
-    text-decoration: none; color: inherit; border-radius: 8px; overflow: hidden;
-    background: #fff; border: 1px solid #f0f0f0;
-    transition: transform 0.2s, box-shadow 0.2s;
-  }
-  .product-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
-  .product-image {
-    aspect-ratio: 1; background: #f8f9fa; overflow: hidden;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .product-image img {
-    width: 100%; height: 100%; object-fit: contain; padding: 1rem;
-    transition: transform 0.3s;
-  }
-  .product-card:hover .product-image img { transform: scale(1.03); }
-  .no-image { color: #bbb; font-size: 0.9rem; }
-  .product-name {
-    font-size: 0.9rem; font-weight: 500; line-height: 1.4; color: #333;
-    padding: 0.75rem; display: -webkit-box; -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical; overflow: hidden; min-height: 3.2em;
-  }
-  .empty { text-align: center; padding: 5rem 2rem; color: #999; }
+  .details-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  .details-table th, .details-table td { padding: 0.6rem 0.75rem; border: 1px solid #eee; text-align: left; }
+  .details-table th { background: #f8f8f8; font-weight: 600; color: #555; width: 30%; }
 
-  @media (max-width: 1200px) { .products-grid { grid-template-columns: repeat(3, 1fr); } }
+  .related { max-width: 1280px; margin: 3rem auto; padding: 0 2rem; }
+  .related-title { font-size: 1.25rem; font-weight: 600; color: #1a1a1a; margin-bottom: 1.25rem; }
+  .related-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.25rem; }
+  .related-card { text-decoration: none; color: inherit; border: 1px solid #eee; border-radius: 8px; overflow: hidden; transition: all 0.2s; }
+  .related-card:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(0,0,0,0.08); }
+  .related-card img { width: 100%; aspect-ratio: 1; object-fit: contain; padding: 1rem; background: #fafafa; }
+  .related-card h3 { font-size: 0.85rem; font-weight: 500; margin: 0; padding: 0.75rem; line-height: 1.4; }
+
   @media (max-width: 900px) {
-    .products-page { grid-template-columns: 1fr; gap: 2rem; }
-    .filter-sidebar { position: static; }
-    .products-grid { grid-template-columns: repeat(2, 1fr); }
+    .product-detail { grid-template-columns: 1fr; gap: 1.5rem; }
+    .gallery { position: static; }
+    .related-grid { grid-template-columns: repeat(2, 1fr); }
   }
-  @media (max-width: 500px) { .products-grid { grid-template-columns: repeat(2, 1fr); gap: 1rem; } }
 </style>

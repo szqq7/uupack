@@ -1,10 +1,14 @@
 ---
 import { getTaxonomyTerms } from "emdash";
 
-// 动态获取 product 分类树（EmDash taxonomy 自带层级结构）
+// 动态获取 product 分类树
 const termTree = await getTaxonomyTerms("product");
 
-// 构建一级菜单项 + 有子级的二级菜单项
+// 读取当前 URL 的 category 参数，用于激活态高亮
+const url = new URL(Astro.request.url);
+const activeCategory = url.searchParams.get("category") || "";
+
+// 构建菜单项：一级 + 有子级的二级独立展示
 type MenuItem = {
   slug: string;
   name: string;
@@ -14,41 +18,46 @@ type MenuItem = {
 const menuItems: MenuItem[] = [];
 
 for (const term of termTree) {
-  // 一级分类 → 菜单项，子项为二级分类
+  // 一级分类
   const topItem: MenuItem = {
     slug: term.slug,
     name: term.label,
-    children: term.children.map(c => ({ slug: c.slug, name: c.label })),
+    children: (term.children || []).map(c => ({ slug: c.slug, name: c.label })),
   };
   menuItems.push(topItem);
 
-  // 二级分类如果有三级子项 → 也作为独立菜单项
-  for (const child of term.children) {
-    if (child.children.length > 0) {
+  // 二级分类如果有三级子项 → 也作为独立菜单项（带下拉）
+  for (const child of (term.children || [])) {
+    if ((child.children || []).length > 0) {
       menuItems.push({
         slug: child.slug,
         name: child.label,
-        children: child.children.map(gc => ({ slug: gc.slug, name: gc.label })),
+        children: child.children.map((gc: any) => ({ slug: gc.slug, name: gc.label })),
       });
     }
   }
+}
+
+function isActive(slug: string): boolean {
+  if (!activeCategory && slug === "") return true;
+  return slug === activeCategory;
 }
 ---
 
 <nav class="cat-menu">
   <div class="cat-inner">
-    <a href="/productss" class="cat-all">All Products</a>
-    
+    <a href="/productss" class:list={["cat-all", { active: isActive("") }]}>All Products</a>
+
     {menuItems.map((item) => (
       <div class="cat-item">
-        <a href={"/productss?category="+item.slug} class="cat-trigger">
+        <a href={"/productss?category="+item.slug} class:list={["cat-trigger", { active: isActive(item.slug) }]}>
           {item.name}
-          {item.children.length > 0 && <span class="arrow">&#9662;</span>}
+          {(item.children || []).length > 0 && <span class="arrow">&#9662;</span>}
         </a>
-        
-        {item.children.length > 0 && (
+
+        {(item.children || []).length > 0 && (
           <div class="cat-drop">
-            {item.children.map((child) => (
+            {(item.children || []).map((child) => (
               <a href={"/productss?category="+child.slug} class="cat-sub-link">
                 {child.name}
               </a>
@@ -64,10 +73,12 @@ for (const term of termTree) {
 .cat-menu{background:#fff;border-bottom:1px solid #ddd;position:relative;z-index:9999}
 .cat-inner{max-width:1200px;margin:0 auto;padding:0 24px;display:flex;align-items:center;gap:0;overflow-x:auto;scrollbar-width:none}
 .cat-inner::-webkit-scrollbar{display:none}
-.cat-all{display:flex;align-items:center;padding:10px 16px;font-size:14px;font-weight:600;color:#06c;text-decoration:none;border-bottom:2px solid #06c;flex-shrink:0;white-space:nowrap}
+.cat-all{display:flex;align-items:center;padding:10px 16px;font-size:14px;font-weight:600;color:#06c;text-decoration:none;border-bottom:2px solid transparent;flex-shrink:0;white-space:nowrap}
+.cat-all.active{color:#06c;border-bottom-color:#06c}
 .cat-item{position:relative;flex-shrink:0}
 .cat-trigger{display:flex;align-items:center;gap:4px;padding:10px 16px;font-size:14px;font-weight:500;color:#525252;text-decoration:none;border-bottom:2px solid transparent;white-space:nowrap}
 .cat-trigger:hover{color:#000;border-color:#06c}
+.cat-trigger.active{color:#06c;border-color:#06c;font-weight:600}
 .arrow{font-size:10px;transition:transform .2s}
 .cat-item:hover .arrow{transform:rotate(180deg)}
 .cat-drop{position:absolute;top:100%;left:0;min-width:180px;background:#fff;border:1px solid #ddd;border-radius:0 0 8px 8px;box-shadow:0 8px 32px rgba(0,0,0,.15);padding:8px 0;display:none;z-index:200}

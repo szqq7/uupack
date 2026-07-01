@@ -1,7 +1,17 @@
 ---
-import { getTaxonomyTerms } from "emdash";
+import { getTaxonomyTerms, getEntriesByTerm } from "emdash";
 
 const termTree = await getTaxonomyTerms("product");
+
+// 用 getEntriesByTerm 获取每个分类的真实产品数量（替代 term.count）
+const realCounts = new Map<string, number>();
+async function loadCount(slug: string) {
+  if (!realCounts.has(slug)) {
+    const entries = await getEntriesByTerm("productss", "product", slug);
+    realCounts.set(slug, entries.length);
+  }
+  return realCounts.get(slug)!;
+}
 
 const url = new URL(Astro.request.url);
 const activeCategory = url.searchParams.get("category") || "";
@@ -17,23 +27,30 @@ const menuItems: MenuItem[] = [];
 
 for (const term of termTree) {
   const kids = (term.children || []) as any[];
+  const termCount = await loadCount(term.slug);
   menuItems.push({
     slug: term.slug,
     name: term.label,
-    count: term.count || 0,
+    count: termCount,
     children: kids.map(c => ({
-      slug: c.slug, name: c.label, count: c.count || 0,
+      slug: c.slug, name: c.label, count: 0,
     })),
   });
   for (const child of kids) {
     const grandkids = (child.children || []) as any[];
+    const childCount = await loadCount(child.slug);
     if (grandkids.length > 0) {
       menuItems.push({
-        slug: child.slug, name: child.label, count: child.count || 0,
+        slug: child.slug, name: child.label, count: childCount,
         children: grandkids.map((gc: any) => ({
-          slug: gc.slug, name: gc.label, count: gc.count || 0,
+          slug: gc.slug, name: gc.label, count: 0,
         })),
       });
+    }
+    const parent = menuItems.find(m => m.slug === term.slug);
+    if (parent) {
+      const childItem = parent.children.find(c => c.slug === child.slug);
+      if (childItem) childItem.count = childCount;
     }
   }
 }
@@ -70,15 +87,12 @@ function isActive(s: string): boolean {
 </nav>
 
 <style is:global>
-/* ====== MegaMenu — 全局样式（is:global 确保不被 Astro 隔离）====== */
-
 .cat-menu{
   background:#fff;
   border-bottom:1px solid #ddd;
   position:relative;
   z-index:99999 !important;
 }
-
 .cat-inner{
   max-width:1200px;
   margin:0 auto;
@@ -86,12 +100,8 @@ function isActive(s: string): boolean {
   display:flex;
   align-items:stretch;
   gap:0;
-  /* 注意：不能用 overflow-x:auto，它会同时裁剪纵轴溢出，
-     导致 .cat-drop (position:absolute;top:100%) 被裁剪掉 */
   overflow:visible;
 }
-
-/* All Products */
 .cat-all{
   display:inline-flex;
   align-items:center;
@@ -105,17 +115,13 @@ function isActive(s: string): boolean {
   flex-shrink:0;
   white-space:nowrap;
 }
-
 .cat-all.active,.cat-all:hover{color:#06c;border-bottom-color:#06c}
-
-/* 菜单项容器 — 关键：position relative + 不裁剪溢出 */
 .cat-item{
   position:relative !important;
   display:inline-flex;
   flex-shrink:0;
   overflow:visible !important;
 }
-
 .cat-trigger{
   display:inline-flex;
   align-items:center;
@@ -129,14 +135,11 @@ function isActive(s: string): boolean {
   white-space:nowrap;
   cursor:pointer;
 }
-
 .cat-trigger:hover{color:#000;border-color:#06c}
 .cat-trigger.active{color:#06c;border-color:#06c;font-weight:600}
 .cat-count{font-size:12px;color:#999;flex-shrink:0}
 .cat-trigger.active .cat-count{color:#06c}
 .arrow{font-size:11px;transition:transform .15s;flex-shrink:0}
-
-/* ====== 下拉面板 ====== */
 .cat-drop{
   position:absolute !important;
   top:100% !important;
@@ -154,15 +157,12 @@ function isActive(s: string): boolean {
   transform:translateY(-4px);
   transition:opacity .15s ease, transform .15s ease, visibility 0s .15s;
 }
-
-/* hover 显示下拉 */
 .cat-item:hover > .cat-drop{
   opacity:1 !important;
   visibility:visible !important;
   transform:translateY(0) !important;
   display:block !important;
 }
-
 .cat-sub-link{
   display:flex;
   align-items:center;
@@ -174,12 +174,9 @@ function isActive(s: string): boolean {
   text-decoration:none;
   white-space:nowrap;
 }
-
 .cat-sub-link:hover{background:#f0f6ff;color:#06c}
 .sub-count{font-size:11px;color:#aaa;flex-shrink:0}
-
 .cat-item:hover .arrow{transform:rotate(180deg)}
-
 @media(max-width:768px){.cat-menu{display:none}}
 </style>
 

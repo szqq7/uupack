@@ -4,158 +4,236 @@ import Base from "../../layouts/Base.astro";
 
 const { entry, cacheHint } = await getEmDashEntry("productss", Astro.params.slug);
 if (!entry) return Astro.redirect("/404");
+if (Astro.cache?.enabled) Astro.cache.set(cacheHint);
 
 const data = entry.data || {};
 const title = data.title || "Product";
 const spu = data.spu || "";
 
-let pictures = [];
+let pictures: Array<{url: string}> = [];
 if (data.picture_json) {
   try {
-    const raw = typeof data.picture_json === "string" ? data.picture_json : JSON.stringify(data.picture_json);
+    const raw = typeof data.picture_json === 'string' ? data.picture_json : JSON.stringify(data.picture_json);
     const parsed = JSON.parse(raw);
     pictures = Array.isArray(parsed) ? parsed : [parsed];
-  } catch (e) {}
+  } catch {}
 }
 
-let highlightItems = [];
+let highlightHtml: string[] = [];
 if (data.top_highlights) {
-  const text = typeof data.top_highlights === "string" ? data.top_highlights : String(data.top_highlights);
-  const lines = text.split(/\n/).filter((s) => s.trim().match(/^[-*]\s/));
-  const items = lines.length > 0 ? lines : (text.trim() ? [text.trim()] : []);
-  highlightItems = items.map((s) => s.trim().replace(/^[-*]\s*/, ""));
+  const text = typeof data.top_highlights === 'string' ? data.top_highlights : JSON.stringify(data.top_highlights);
+  const lines = text.split(/\n/).filter((s: string) => s.trim().match(/^[-*]\s/));
+  if (lines.length === 0 && text.trim()) {
+    highlightHtml = [text.trim()];
+  } else {
+    highlightHtml = lines.map((s: string) =>
+      s.trim().replace(/^[-*]\s*/, '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    );
+  }
 }
 
-let details = [];
+let details: Array<{key: string; value: string}> = [];
 if (data.item_details) {
   try {
-    let raw = typeof data.item_details === "string" ? data.item_details : JSON.stringify(data.item_details);
-    raw = raw.replace(/,\s*,/g, ",").replace(/$$\s*,/g, "[").replace(/,\s*$$/g, "]");
+    let raw = typeof data.item_details === 'string' ? data.item_details : JSON.stringify(data.item_details);
+    raw = raw.replace(/,\s*,/g, ',').replace(/$$\s*,/g, '[').replace(/,\s*$$/g, ']');
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      details = parsed.map((item) => ({ key: item.key || item.label || "Item", value: item.value || item.text || String(item) }));
+      details = parsed.map((item: any) => ({
+        key: item.key || item.label || 'Item',
+        value: item.value || item.text || String(item)
+      }));
     }
-  } catch (e) {}
+  } catch {}
 }
 
-function boldText(s) { return s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>"); }
-function getImgSrc(item) { return item?.url || item?.src || (typeof item === "string" ? item : ""); }
+// === 新增：颜色图 (color_img) 开始 ===
+let colorImages: Array<{url: string; label?: string}> = [];
+if (data.color_img && data.color_img !== '{}') {
+  try {
+    let raw = typeof data.color_img === 'string' ? data.color_img : JSON.stringify(data.color_img);
+    raw = raw.trim();
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      colorImages = parsed.map((item: any) => ({
+        url: item.url || item.src || item.image || (typeof item === 'string' ? item : ''),
+        label: item.label || item.name || item.color || ''
+      })).filter(c => c.url);
+    } else if (parsed && (parsed.url || parsed.src)) {
+      colorImages = [{
+        url: parsed.url || parsed.src,
+        label: parsed.label || parsed.name || parsed.color || ''
+      }];
+    }
+  } catch {}
+}
+const hasColorImages = colorImages.length > 0;
+// === 颜色图结束 ===
 ---
 
 <Base title={title}>
-  <div class="product-container">
-    <div class="product-main">
-      <!-- 左侧：图片 -->
-      <div class="product-media">
+  <div class="product-page">
+    <div class="product-header-row">
+      <div class="product-image">
         {pictures.length > 0 ? (
-          <>
-            <div class="main-image">
-              <img id="mainImg" src={getImgSrc(pictures[0])} alt={title} />
-            </div>
-            {pictures.length > 1 && (
-              <div class="thumbnail-list">
-                {pictures.map((pic, i) => (
-                  <button class="thumb-btn" data-src={getImgSrc(pic)} aria-label={`View image ${i + 1}`}>
-                    <img src={getImgSrc(pic)} class="thumb" />
-                  </button>
-                ))}
-              </div>
-            )}
-          </>
+          <img id="main-product-img" src={pictures[0].url || pictures[0].src || pictures[0]} alt={title} />
         ) : (
           <div class="no-image">No Image</div>
         )}
       </div>
-
-      <!-- 右侧：产品信息 -->
-      <div class="product-info">
-        <h1 class="product-title">{title}</h1>
-        {spu && <div class="product-code">Code: {spu}</div>}
-
-        <section class="product-section">
-          <h2 class="section-title">Product Details</h2>
-
-          {highlightItems.length > 0 && (
-            <details class="details-panel" open>
-              <summary>Top Highlights</summary>
-              <div class="panel-content">
-                <ul class="highlight-list">
-                  {highlightItems.map((item) => <li set:html={boldText(item)} />)}
-                </ul>
-              </div>
-            </details>
-          )}
-
-          {details.length > 0 && (
-            <details class="details-panel" open>
-              <summary>Item Details</summary>
-              <div class="panel-content">
-                <table class="specs-table">
-                  <tbody>
-                    {details.map((d) => (
-                      <tr>
-                        <td class="spec-key">{d.key}</td>
-                        <td class="spec-value">{d.value}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </details>
-          )}
-        </section>
+      <div class="product-header">
+        <h1>{title}</h1>
+        {spu && <p class="product-code">Code: {spu}</p>}
       </div>
     </div>
-  </div>
 
-  <script>
-    document.querySelectorAll('.thumb-btn').forEach(btn => {
-      btn.addEventListener('click', function() {
-        const src = this.getAttribute('data-src');
-        const mainImg = document.getElementById('mainImg');
-        if (mainImg && src) mainImg.src = src;
-      });
-    });
-  </script>
+    <!-- === 新增：颜色图横排条带，在 SPU 下方、Product Details 上方，点击切换主图 === -->
+    {hasColorImages && (
+      <div class="color-strip">
+        <span class="color-strip-label">Color Options:</span>
+        <div class="color-thumbs">
+          {colorImages.map((img, i) => (
+            <button
+              class={`color-thumb${i === 0 ? ' active' : ''}`}
+              data-src={img.url}
+              title={img.label || `Color ${i + 1}`}
+              onclick={(e) => {
+                const mainImg = document.getElementById('main-product-img');
+                if (mainImg && img.url) mainImg.setAttribute('src', img.url);
+                document.querySelectorAll('.color-thumb').forEach(el => el.classList.remove('active'));
+                e.currentTarget.classList.add('active');
+              }}
+            >
+              <img src={img.url} alt={img.label || 'Color'} loading="lazy" />
+            </button>
+          ))}
+        </div>
+      </div>
+    )}
+    <!-- === 颜色图结束 === -->
+
+    <section class="product-section">
+      <h2 class="section-title">Product Details</h2>
+
+      {highlightHtml.length > 0 && (
+        <details class="details-panel" open>
+          <summary>Top Highlights</summary>
+          <div class="panel-content">
+            <ul class="highlight-list">
+              {highlightHtml.map((html: string) => (
+                <li set:html={html} />
+              ))}
+            </ul>
+          </div>
+        </details>
+      )}
+
+      {details.length > 0 && (
+        <details class="details-panel" open>
+          <summary>Item Details</summary>
+          <div class="panel-content">
+            <table class="specs-table">
+              <tbody>
+                {details.map((d) => (
+                  <tr>
+                    <td class="spec-key">{d.key}</td>
+                    <td class="spec-value">{d.value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
+    </section>
+  </div>
 </Base>
 
 <style>
-  .product-container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
-  .product-main { display: grid; grid-template-columns: 500px 1fr; gap: 3rem; align-items: start; }
-  
-  .product-media { position: sticky; top: 2rem; }
-  .main-image { width: 100%; aspect-ratio: 1; background: #f8f9fa; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-  .main-image img { width: 100%; height: 100%; object-fit: contain; padding: 1rem; }
-  .thumbnail-list { display: flex; gap: 0.5rem; margin-top: 1rem; overflow-x: auto; }
-  .thumb-btn { padding: 0; border: 2px solid #e0e0e0; border-radius: 4px; background: #fff; cursor: pointer; }
-  .thumb-btn:hover, .thumb-btn:focus { border-color: #333; }
-  .thumb { width: 80px; height: 80px; object-fit: cover; border-radius: 2px; display: block; }
-  .no-image { width: 100%; aspect-ratio: 1; background: #f8f9fa; display: flex; align-items: center; justify-content: center; color: #999; border-radius: 8px; }
+  .product-page { max-width: 900px; margin: 0 auto; padding: 2rem; }
 
-  .product-info { padding-top: 0.5rem; }
-  .product-title { font-size: 1.75rem; font-weight: 600; margin-bottom: 0.5rem; line-height: 1.3; }
-  .product-code { color: #666; font-size: 0.9rem; margin-bottom: 2rem; }
+  .product-header-row { display: flex; gap: 2rem; align-items: flex-start; margin-bottom: 3rem; }
+  .product-image { flex-shrink: 0; width: 300px; aspect-ratio: 1; background: #f8f9fa; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  .product-image img { width: 100%; height: 100%; object-fit: contain; padding: 1rem; }
+  .no-image { color: #999; }
+  .product-header { flex: 1; padding-top: 0.5rem; }
+  .product-header h1 { font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; }
+  .product-code { color: #666; font-size: 0.95rem; }
+
   .section-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid #333; }
-  
   .details-panel { margin-bottom: 1rem; border: 1px solid #e0e0e0; border-radius: 6px; overflow: hidden; }
   .details-panel summary { padding: 1rem 1.25rem; font-weight: 600; cursor: pointer; background: #f8f9fa; list-style: none; }
   .details-panel summary::before { content: "▼"; margin-right: 0.5rem; font-size: 0.8rem; }
   .details-panel:not([open]) summary::before { transform: rotate(-90deg); }
   .panel-content { padding: 1.25rem; background: #fff; }
-  
   .highlight-list { list-style: none; padding: 0; margin: 0; }
   .highlight-list li { padding: 0.75rem 0; padding-left: 1.2rem; position: relative; border-bottom: 1px solid #f0f0f0; line-height: 1.6; }
   .highlight-list li:last-child { border-bottom: none; }
   .highlight-list li::before { content: "•"; position: absolute; left: 0; color: #666; font-weight: bold; }
-  
+  .highlight-list li :global(strong) { font-weight: 600; }
   .specs-table { width: 100%; border-collapse: collapse; }
   .specs-table tr { border-bottom: 1px solid #f0f0f0; }
   .specs-table td { padding: 0.9rem 0; vertical-align: top; }
   .spec-key { width: 35%; font-weight: 600; color: #555; }
   .spec-value { width: 65%; color: #222; padding-left: 1rem; }
 
-  @media (max-width: 900px) {
-    .product-main { grid-template-columns: 1fr; }
-    .product-media { position: static; }
+  /* === 新增：颜色图样式 === */
+  .color-strip {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 32px;
+    padding: 16px 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e8e8e8;
+    flex-wrap: wrap;
+  }
+  .color-strip-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #666;
+    white-space: nowrap;
+  }
+  .color-thumbs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+  .color-thumb {
+    display: block;
+    width: 56px;
+    height: 56px;
+    border-radius: 6px;
+    border: 2px solid transparent;
+    background: #fff;
+    cursor: pointer;
+    padding: 2px;
+    transition: all 0.2s ease;
+    outline: none;
+    flex-shrink: 0;
+  }
+  .color-thumb:hover {
+    border-color: #333;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  }
+  .color-thumb.active {
+    border-color: #333;
+    box-shadow: 0 0 0 2px rgba(0,0,0,0.08);
+  }
+  .color-thumb img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 4px;
+  }
+  /* === 颜色图样式结束 === */
+
+  @media (max-width: 700px) {
+    .product-header-row { flex-direction: column; }
+    .product-image { width: 100%; }
   }
 </style>

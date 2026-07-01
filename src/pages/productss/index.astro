@@ -1,27 +1,19 @@
 ---
-import { getEmDashCollection } from "emdash";
+import { getEmDashCollection, getEntriesByTerm } from "emdash";
 import Base from "../../layouts/Base.astro";
 
-const { entries } = await getEmDashCollection("productss");
-const products = entries || [];
+const { entries: allEntries } = await getEmDashCollection("productss");
+const allProducts = allEntries || [];
 
-// 读取 URL category 参数
 const url = new URL(Astro.request.url);
 const selectedCategory = url.searchParams.get("category");
 
-// 根据 category 过滤产品
-const filteredProducts = selectedCategory
-  ? products.filter((p) => {
-      try {
-        const raw = p.data?.category_slugs;
-        if (!raw) return false;
-        const slugs = JSON.parse(typeof raw === "string" ? raw : JSON.stringify(raw));
-        return Array.isArray(slugs) && slugs.includes(selectedCategory);
-      } catch {
-        return false;
-      }
-    })
-  : products;
+let filteredProducts = allProducts;
+if (selectedCategory) {
+  const matched = await getEntriesByTerm("productss", "product", selectedCategory);
+  const matchedIds = new Set(matched.map((m) => m.id));
+  filteredProducts = allProducts.filter((p) => matchedIds.has(p.id));
+}
 
 const displayProducts = filteredProducts.slice(0, 12);
 
@@ -29,8 +21,7 @@ function getFirstImage(entry) {
   try {
     if (!entry?.data?.picture_json) return "";
     const raw = typeof entry.data.picture_json === "string"
-      ? entry.data.picture_json
-      : JSON.stringify(entry.data.picture_json);
+      ? entry.data.picture_json : JSON.stringify(entry.data.picture_json);
     if (!raw || raw === "null" || raw === "{}") return "";
     const parsed = JSON.parse(raw);
     const pics = Array.isArray(parsed) ? parsed : [parsed];
@@ -44,7 +35,7 @@ function getFirstImage(entry) {
     <header class="products-header">
       <h1 class="page-title">Products</h1>
       <p class="page-subtitle">
-        {selectedCategory ? "已筛选: " + selectedCategory + " (" + filteredProducts.length + ")" : "共 " + products.length + " 个产品"}
+        {selectedCategory ? "已筛选: " + selectedCategory + " (" + filteredProducts.length + ")" : "共 " + allProducts.length + " 个产品"}
       </p>
     </header>
 

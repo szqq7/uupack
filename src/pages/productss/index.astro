@@ -5,9 +5,11 @@ import Base from "../../layouts/Base.astro";
 const { entries } = await getEmDashCollection("productss");
 const products = entries || [];
 
+// 读取 URL category 参数
 const url = new URL(Astro.request.url);
 const selectedCategory = url.searchParams.get("category");
 
+// 根据 category 过滤产品
 const filteredProducts = selectedCategory
   ? products.filter((p) => {
       try {
@@ -15,7 +17,9 @@ const filteredProducts = selectedCategory
         if (!raw) return false;
         const slugs = JSON.parse(typeof raw === "string" ? raw : JSON.stringify(raw));
         return Array.isArray(slugs) && slugs.includes(selectedCategory);
-      } catch { return false; }
+      } catch {
+        return false;
+      }
     })
   : products;
 
@@ -25,7 +29,8 @@ function getFirstImage(entry) {
   try {
     if (!entry?.data?.picture_json) return "";
     const raw = typeof entry.data.picture_json === "string"
-      ? entry.data.picture_json : JSON.stringify(entry.data.picture_json);
+      ? entry.data.picture_json
+      : JSON.stringify(entry.data.picture_json);
     if (!raw || raw === "null" || raw === "{}") return "";
     const parsed = JSON.parse(raw);
     const pics = Array.isArray(parsed) ? parsed : [parsed];

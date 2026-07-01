@@ -3,15 +3,22 @@ import { getTaxonomyTerms, getEntriesByTerm } from "emdash";
 
 const termTree = await getTaxonomyTerms("product");
 
-// 用 getEntriesByTerm 获取每个分类的真实产品数量（替代 term.count）
-const realCounts = new Map<string, number>();
-async function loadCount(slug: string) {
-  if (!realCounts.has(slug)) {
-    const entries = await getEntriesByTerm("productss", "product", slug);
-    realCounts.set(slug, entries.length);
+// 收集所有 slug（所有层级）
+const allSlugs: string[] = [];
+function collectSlugs(terms: any[]) {
+  for (const t of terms) {
+    allSlugs.push(t.slug);
+    if (t.children) collectSlugs(t.children);
   }
-  return realCounts.get(slug)!;
 }
+collectSlugs(termTree);
+
+// 批量加载所有分类的真实产品数
+const countMap = new Map<string, number>();
+await Promise.all(allSlugs.map(async (slug) => {
+  const entries = await getEntriesByTerm("productss", "product", slug);
+  countMap.set(slug, entries.length);
+}));
 
 const url = new URL(Astro.request.url);
 const activeCategory = url.searchParams.get("category") || "";
@@ -23,34 +30,25 @@ type MenuItem = {
   children: { slug: string; name: string; count: number }[];
 };
 
-const menuItems: MenuItem[] = [];
+// 递归构建菜单树
+function buildMenu(terms: any[]): MenuItem[] {
+  return terms.map(t => ({
+    slug: t.slug,
+    name: t.label,
+    count: countMap.get(t.slug) || 0,
+    children: t.children ? buildMenu(t.children) : [],
+  }));
+}
 
-for (const term of termTree) {
-  const kids = (term.children || []) as any[];
-  const termCount = await loadCount(term.slug);
-  menuItems.push({
-    slug: term.slug,
-    name: term.label,
-    count: termCount,
-    children: kids.map(c => ({
-      slug: c.slug, name: c.label, count: 0,
-    })),
-  });
-  for (const child of kids) {
-    const grandkids = (child.children || []) as any[];
-    const childCount = await loadCount(child.slug);
-    if (grandkids.length > 0) {
-      menuItems.push({
-        slug: child.slug, name: child.label, count: childCount,
-        children: grandkids.map((gc: any) => ({
-          slug: gc.slug, name: gc.label, count: 0,
-        })),
-      });
-    }
-    const parent = menuItems.find(m => m.slug === term.slug);
-    if (parent) {
-      const childItem = parent.children.find(c => c.slug === child.slug);
-      if (childItem) childItem.count = childCount;
+const menuItems = buildMenu(termTree);
+
+// 展平为顶部导航项：L1 + (有子分类的 L2)
+const topItems: MenuItem[] = [];
+for (const l1 of menuItems) {
+  topItems.push(l1);
+  for (const l2 of l1.children) {
+    if (l2.children.length > 0) {
+      topItems.push(l2);
     }
   }
 }
@@ -64,7 +62,7 @@ function isActive(s: string): boolean {
   <div class="cat-inner">
     <a href="/productss" class:list={["cat-all", { active: isActive("") }]}>All Products</a>
 
-    {menuItems.map((item) => (
+    {topItems.map((item) => (
       <div class="cat-item">
         <a href={"/productss?category="+item.slug} class:list={["cat-trigger", { active: isActive(item.slug) }]}>
           {item.name}
@@ -180,7 +178,7 @@ function isActive(s: string): boolean {
 @media(max-width:768px){.cat-menu{display:none}}
 </style>
 
-<script define:vars={{menuItems}}>
+<script define:vars={{menuItems: topItems}}>
 window.__megaMenuInit = function() {
   document.querySelectorAll('.cat-item').forEach(function(item) {
     var drop = item.querySelector('.cat-drop');
@@ -194,7 +192,7 @@ window.__megaMenuInit = function() {
     item.addEventListener('mouseleave', function() {
       drop.style.opacity = '0';
       drop.style.visibility = 'hidden';
-      drop.style.transform = 'translateY(-4px)';
+      drop.style.transform = 'translateY(-4px)');
     });
   });
 };

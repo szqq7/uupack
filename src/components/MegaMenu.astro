@@ -1,7 +1,24 @@
 ---
-import { getTaxonomyTerms } from "emdash";
+import { getTaxonomyTerms, getEntriesByTerm } from "emdash";
 
 const termTree = await getTaxonomyTerms("product");
+
+// 收集所有 slug（所有层级）
+const allSlugs: string[] = [];
+function collectSlugs(terms: any[]) {
+  for (const t of terms) {
+    allSlugs.push(t.slug);
+    if (t.children) collectSlugs(t.children);
+  }
+}
+collectSlugs(termTree);
+
+// 批量加载所有分类的真实产品数
+const countMap = new Map<string, number>();
+await Promise.all(allSlugs.map(async (slug) => {
+  const entries = await getEntriesByTerm("productss", "product", slug);
+  countMap.set(slug, entries.length);
+}));
 
 const url = new URL(Astro.request.url);
 const activeCategory = url.searchParams.get("category") || "";
@@ -13,27 +30,25 @@ type MenuItem = {
   children: { slug: string; name: string; count: number }[];
 };
 
-const menuItems: MenuItem[] = [];
+// 递归构建菜单树
+function buildMenu(terms: any[]): MenuItem[] {
+  return terms.map(t => ({
+    slug: t.slug,
+    name: t.label,
+    count: countMap.get(t.slug) || 0,
+    children: t.children ? buildMenu(t.children) : [],
+  }));
+}
 
-for (const term of termTree) {
-  const kids = (term.children || []) as any[];
-  menuItems.push({
-    slug: term.slug,
-    name: term.label,
-    count: term.count || 0,
-    children: kids.map(c => ({
-      slug: c.slug, name: c.label, count: c.count || 0,
-    })),
-  });
-  for (const child of kids) {
-    const grandkids = (child.children || []) as any[];
-    if (grandkids.length > 0) {
-      menuItems.push({
-        slug: child.slug, name: child.label, count: child.count || 0,
-        children: grandkids.map((gc: any) => ({
-          slug: gc.slug, name: gc.label, count: gc.count || 0,
-        })),
-      });
+const menuItems = buildMenu(termTree);
+
+// 展平为顶部导航项：L1 + (有子分类的 L2)
+const topItems: MenuItem[] = [];
+for (const l1 of menuItems) {
+  topItems.push(l1);
+  for (const l2 of l1.children) {
+    if (l2.children.length > 0) {
+      topItems.push(l2);
     }
   }
 }
@@ -47,7 +62,7 @@ function isActive(s: string): boolean {
   <div class="cat-inner">
     <a href="/productss" class:list={["cat-all", { active: isActive("") }]}>All Products</a>
 
-    {menuItems.map((item) => (
+    {topItems.map((item) => (
       <div class="cat-item">
         <a href={"/productss?category="+item.slug} class:list={["cat-trigger", { active: isActive(item.slug) }]}>
           {item.name}
@@ -70,37 +85,114 @@ function isActive(s: string): boolean {
 </nav>
 
 <style is:global>
-.cat-menu{ background:#fff; border-bottom:1px solid #ddd; position:relative; z-index:99999 !important; }
-.cat-inner{ max-width:1200px; margin:0 auto; padding:0 24px; display:flex; align-items:stretch; gap:0; overflow:visible; }
-.cat-all{ display:inline-flex; align-items:center; gap:6px; padding:10px 16px; font-size:14px; font-weight:600; color:#06c; text-decoration:none; border-bottom:2px solid transparent; flex-shrink:0; white-space:nowrap; }
-.cat-all.active,.cat-all:hover{ color:#06c; border-bottom-color:#06c; }
-.cat-item{ position:relative !important; display:inline-flex; flex-shrink:0; overflow:visible !important; }
-.cat-trigger{ display:inline-flex; align-items:center; gap:6px; padding:10px 16px; font-size:14px; font-weight:500; color:#525252; text-decoration:none; border-bottom:2px solid transparent; white-space:nowrap; cursor:pointer; }
-.cat-trigger:hover{ color:#000; border-color:#06c; }
-.cat-trigger.active{ color:#06c; border-color:#06c; font-weight:600; }
-.cat-count{ font-size:12px; color:#999; flex-shrink:0; }
-.cat-trigger.active .cat-count{ color:#06c; }
-.arrow{ font-size:11px; transition:transform .15s; flex-shrink:0; }
-.cat-drop{ position:absolute !important; top:100% !important; left:0 !important; min-width:220px; background:#fff; border:1px solid #d0d0d0; border-radius:0 0 8px 8px; box-shadow:0 12px 40px rgba(0,0,0,.18); padding:8px 0; z-index:9999999 !important; pointer-events:auto; opacity:0; visibility:hidden; transform:translateY(-4px); transition:opacity .15s ease, transform .15s ease, visibility 0s .15s; }
-.cat-item:hover > .cat-drop{ opacity:1 !important; visibility:visible !important; transform:translateY(0) !important; display:block !important; }
-.cat-sub-link{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 20px; font-size:13px; color:#444; text-decoration:none; white-space:nowrap; }
-.cat-sub-link:hover{ background:#f0f6ff; color:#06c; }
-.sub-count{ font-size:11px; color:#aaa; flex-shrink:0; }
-.cat-item:hover .arrow{ transform:rotate(180deg); }
-@media(max-width:768px){ .cat-menu{ display:none; } }
+.cat-menu{
+  background:#fff;
+  border-bottom:1px solid #ddd;
+  position:relative;
+  z-index:99999 !important;
+}
+.cat-inner{
+  max-width:1200px;
+  margin:0 auto;
+  padding:0 24px;
+  display:flex;
+  align-items:stretch;
+  gap:0;
+  overflow:visible;
+}
+.cat-all{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:10px 16px;
+  font-size:14px;
+  font-weight:600;
+  color:#06c;
+  text-decoration:none;
+  border-bottom:2px solid transparent;
+  flex-shrink:0;
+  white-space:nowrap;
+}
+.cat-all.active,.cat-all:hover{color:#06c;border-bottom-color:#06c}
+.cat-item{
+  position:relative !important;
+  display:inline-flex;
+  flex-shrink:0;
+  overflow:visible !important;
+}
+.cat-trigger{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:10px 16px;
+  font-size:14px;
+  font-weight:500;
+  color:#525252;
+  text-decoration:none;
+  border-bottom:2px solid transparent;
+  white-space:nowrap;
+  cursor:pointer;
+}
+.cat-trigger:hover{color:#000;border-color:#06c}
+.cat-trigger.active{color:#06c;border-color:#06c;font-weight:600}
+.cat-count{font-size:12px;color:#999;flex-shrink:0}
+.cat-trigger.active .cat-count{color:#06c}
+.arrow{font-size:11px;transition:transform .15s;flex-shrink:0}
+.cat-drop{
+  position:absolute !important;
+  top:100% !important;
+  left:0 !important;
+  min-width:220px;
+  background:#fff;
+  border:1px solid #d0d0d0;
+  border-radius:0 0 8px 8px;
+  box-shadow:0 12px 40px rgba(0,0,0,.18);
+  padding:8px 0;
+  z-index:9999999 !important;
+  pointer-events:auto;
+  opacity:0;
+  visibility:hidden;
+  transform:translateY(-4px);
+  transition:opacity .15s ease, transform .15s ease, visibility 0s .15s;
+}
+.cat-item:hover > .cat-drop{
+  opacity:1 !important;
+  visibility:visible !important;
+  transform:translateY(0) !important;
+  display:block !important;
+}
+.cat-sub-link{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 20px;
+  font-size:13px;
+  color:#444;
+  text-decoration:none;
+  white-space:nowrap;
+}
+.cat-sub-link:hover{background:#f0f6ff;color:#06c}
+.sub-count{font-size:11px;color:#aaa;flex-shrink:0}
+.cat-item:hover .arrow{transform:rotate(180deg)}
+@media(max-width:768px){.cat-menu{display:none}}
 </style>
 
-<script define:vars={{menuItems}}>
+<script define:vars={{menuItems: topItems}}>
 window.__megaMenuInit = function() {
   document.querySelectorAll('.cat-item').forEach(function(item) {
     var drop = item.querySelector('.cat-drop');
     if (!drop) return;
     var trigger = item.querySelector('.cat-trigger');
     trigger.addEventListener('mouseenter', function() {
-      drop.style.opacity = '1'; drop.style.visibility = 'visible'; drop.style.transform = 'translateY(0)';
+      drop.style.opacity = '1';
+      drop.style.visibility = 'visible';
+      drop.style.transform = 'translateY(0)';
     });
     item.addEventListener('mouseleave', function() {
-      drop.style.opacity = '0'; drop.style.visibility = 'hidden'; drop.style.transform = 'translateY(-4px)';
+      drop.style.opacity = '0';
+      drop.style.visibility = 'hidden';
+      drop.style.transform = 'translateY(-4px)');
     });
   });
 };

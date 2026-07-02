@@ -140,7 +140,8 @@ const isLoggedIn = !!Astro.locals.user;
 		</header>
 
 				{/* MegaMenu 只在产品列表页 / 产品详情页展示 */}
-		{Astro.url.pathname.startsWith('/productss') && <MegaMenu />}
+		{(new URL(Astro.request.url).pathname === '/productss') && <MegaMenu />}
+
 
 
 

@@ -1,5 +1,6 @@
 ---
-import { getTaxonomyTerms, getEntriesByTerm } from "emdash";
+import { getTaxonomyTerms } from "emdash";
+
 
 const termTree = await getTaxonomyTerms("product");
 
@@ -20,6 +21,7 @@ await Promise.all(allSlugs.map(async (slug) => {
   countMap.set(slug, entries.length);
 }));
 
+
 const url = new URL(Astro.request.url);
 const activeCategory = url.searchParams.get("category") || "";
 
@@ -30,17 +32,31 @@ type MenuItem = {
   children: { slug: string; name: string; count: number }[];
 };
 
-// 递归构建菜单树
-function buildMenu(terms: any[]): MenuItem[] {
-  return terms.map(t => ({
-    slug: t.slug,
-    name: t.label,
-    count: countMap.get(t.slug) || 0,
-    children: t.children ? buildMenu(t.children) : [],
-  }));
+const menuItems: MenuItem[] = [];
+
+for (const term of termTree) {
+  const kids = (term.children || []) as any[];
+  menuItems.push({
+    slug: term.slug,
+    name: term.label,
+    count: term.count || 0,
+    children: kids.map(c => ({
+      slug: c.slug, name: c.label, count: c.count || 0,
+    })),
+  });
+  for (const child of kids) {
+    const grandkids = (child.children || []) as any[];
+    if (grandkids.length > 0) {
+      menuItems.push({
+        slug: child.slug, name: child.label, count: child.count || 0,
+        children: grandkids.map((gc: any) => ({
+          slug: gc.slug, name: gc.label, count: gc.count || 0,
+        })),
+      });
+    }
+  }
 }
 
-const menuItems = buildMenu(termTree);
 
 // 展平为顶部导航项：L1 + (有子分类的 L2)
 const topItems: MenuItem[] = [];

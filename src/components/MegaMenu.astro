@@ -1,7 +1,7 @@
 ---
 import { getTaxonomyTerms, getEntriesByTerm } from "emdash";
 
-const termTree = await getTaxonomyTerms("product");
+const termTree = await getTaxonomyTerms("products1");
 
 // 收集所有 slug（所有层级）
 const allSlugs: string[] = [];
@@ -16,7 +16,7 @@ collectSlugs(termTree);
 // 批量加载所有分类的真实产品数
 const countMap = new Map<string, number>();
 await Promise.all(allSlugs.map(async (slug) => {
-  const entries = await getEntriesByTerm("productss", "product", slug);
+  const entries = await getEntriesByTerm("products", "products1", slug);
   countMap.set(slug, entries.length);
 }));
 
@@ -60,7 +60,7 @@ function isActive(s: string): boolean {
 
 <nav class="cat-menu">
   <div class="cat-inner">
-    <a href="/productss" class:list={["cat-all", { active: isActive("") }]}>All Products</a>
+    <a href="/products" class:list={["cat-all", { active: isActive("") }]}>All Products</a>
 
     {topItems.map((item) => (
       <div class="cat-item">
@@ -72,7 +72,7 @@ function isActive(s: string): boolean {
         {(item.children||[]).length>0 && (
           <div class="cat-drop">
             {item.children.map(child => (
-              <a href={"/productss?category="+child.slug} class="cat-sub-link">
+              <a href={"/products?category="+child.slug} class="cat-sub-link">
                 {child.name}
                 <span class="sub-count">({child.count})</span>
               </a>

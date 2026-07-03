@@ -2,7 +2,7 @@
 import { getEmDashCollection, getEntriesByTerm } from "emdash";
 import Base from "../../layouts/Base.astro";
 
-const { entries: allEntries } = await getEmDashCollection("productss");
+const { entries: allEntries } = await getEmDashCollection("products");
 const allProducts = allEntries || [];
 
 const url = new URL(Astro.request.url);

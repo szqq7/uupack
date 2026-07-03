@@ -2,7 +2,7 @@
 import { getEmDashEntry } from "emdash";
 import Base from "../../layouts/Base.astro";
 
-const { entry, cacheHint } = await getEmDashEntry("productss", Astro.params.slug);
+const { entry, cacheHint } = await getEmDashEntry("products", Astro.params.slug, { taxonomy: "products1" });
 if (!entry) return Astro.redirect("/404");
 
 const data = entry.data || {};

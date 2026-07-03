@@ -10,7 +10,7 @@ const selectedCategory = url.searchParams.get("category");
 
 let filteredProducts = allProducts;
 if (selectedCategory) {
-  const matched = await getEntriesByTerm("productss", "product", selectedCategory);
+  const matched = await getEntriesByTerm("products", "products1", selectedCategory);
   const matchedIds = new Set(matched.map((m) => m.id));
   filteredProducts = allProducts.filter((p) => matchedIds.has(p.id));
 }

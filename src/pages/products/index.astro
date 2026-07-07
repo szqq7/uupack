@@ -69,10 +69,6 @@ Astro.response.headers.set('CDN-Cache-Control', 'public, s-maxage=300, stale-whi
 
 <Base title="Products">
   <div class="products-page">
-    <div class="products-header">
-      <h1 class="page-title">Products</h1>
-    </div>
-
     <div class="products-grid">
       {displayProducts.map((product) => {
         const imgUrl = getFirstImage(product);
@@ -114,8 +110,6 @@ Astro.response.headers.set('CDN-Cache-Control', 'public, s-maxage=300, stale-whi
 
 <style>
   .products-page { max-width: 1400px; margin: 0 auto; padding: 2rem; }
-  .products-header { text-align: center; margin-bottom: 2.5rem; }
-  .page-title { font-size: 1.75rem; font-weight: 700; color: #222; margin-bottom: 0.25rem; }
   .products-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; }
   .product-card { text-decoration: none; color: inherit; transition: transform 0.2s, box-shadow 0.2s; border-radius: 8px; overflow: hidden; background: #fff; border: 1px solid #f0f0f0; }
   .product-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); }

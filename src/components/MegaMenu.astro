@@ -1,5 +1,5 @@
 ---
-import { getTaxonomyTerms, getEntriesByTerm } from "emdash";
+import { getTaxonomyTerms, getEmDashCollection, getTermsForEntries } from "emdash";
 
 const termTree = await getTaxonomyTerms("products1");
 
@@ -13,12 +13,22 @@ function collectSlugs(terms: any[]) {
 }
 collectSlugs(termTree);
 
-// 批量加载所有分类的真实产品数
+// ===== 优化：2 次查询代替 24 次 =====
+// 1. 一次取出所有产品
+const { entries } = await getEmDashCollection("products");
+
+// 2. 一次批量查出所有产品的分类关联
+const entryIds = entries.map((e) => e.id).filter(Boolean);
+const termsByEntry = await getTermsForEntries("products", entryIds, "products1");
+
+// 3. 内存中统计每个分类下的产品数（零数据库查询）
 const countMap = new Map<string, number>();
-await Promise.all(allSlugs.map(async (slug) => {
-  const entries = await getEntriesByTerm("products", "products1", slug);
-  countMap.set(slug, entries.length);
-}));
+for (const terms of termsByEntry.values()) {
+  for (const term of terms) {
+    const slug = typeof term === "string" ? term : term.slug;
+    countMap.set(slug, (countMap.get(slug) || 0) + 1);
+  }
+}
 
 const url = new URL(Astro.request.url);
 const activeCategory = url.searchParams.get("category") || "";
@@ -30,9 +40,8 @@ type MenuItem = {
   children: { slug: string; name: string; count: number }[];
 };
 
-// 递归构建菜单树
 function buildMenu(terms: any[]): MenuItem[] {
-  return terms.map(t => ({
+  return terms.map((t) => ({
     slug: t.slug,
     name: t.label,
     count: countMap.get(t.slug) || 0,
@@ -64,15 +73,15 @@ function isActive(s: string): boolean {
 
     {topItems.map((item) => (
       <div class="cat-item">
-        <a href={"/products?category="+item.slug} class:list={["cat-trigger", { active: isActive(item.slug) }]}>
+        <a href={"/products?category=" + item.slug} class:list={["cat-trigger", { active: isActive(item.slug) }]}>
           {item.name}
           <span class="cat-count">({item.count})</span>
-          {(item.children||[]).length>0 && <span class="arrow">▾</span>}
+          {(item.children || []).length > 0 && <span class="arrow">▾</span>}
         </a>
-        {(item.children||[]).length>0 && (
+        {(item.children || []).length > 0 && (
           <div class="cat-drop">
-            {item.children.map(child => (
-              <a href={"/products?category="+child.slug} class="cat-sub-link">
+            {item.children.map((child) => (
+              <a href={"/products?category=" + child.slug} class="cat-sub-link">
                 {child.name}
                 <span class="sub-count">({child.count})</span>
               </a>
@@ -84,6 +93,7 @@ function isActive(s: string): boolean {
   </div>
 </nav>
 
+<!-- 以下 style 和 script 部分不变 -->
 <style is:global>
 .cat-menu{
   background:#fff;
@@ -192,7 +202,7 @@ window.__megaMenuInit = function() {
     item.addEventListener('mouseleave', function() {
       drop.style.opacity = '0';
       drop.style.visibility = 'hidden';
-      drop.style.transform = 'translateY(-4px)');
+      drop.style.transform = 'translateY(-4px)';
     });
   });
 };

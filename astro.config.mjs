@@ -1,6 +1,7 @@
 import cloudflare from "@astrojs/cloudflare";
 import react from "@astrojs/react";
 import { d1, r2, sandbox } from "@emdash-cms/cloudflare";
+import { cloudflareCache } from "@emdash-cms/cloudflare/cache/config";
 import { formsPlugin } from "@emdash-cms/plugin-forms";
 import webhookNotifier from "@emdash-cms/plugin-webhook-notifier";
 import { defineConfig, fontProviders } from "astro/config";

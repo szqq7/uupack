@@ -11,7 +11,7 @@ export default defineConfig({
 	adapter: cloudflare(),
 	experimental: {
     cache: { provider: cloudflareCache() },
-  },
+	},
 	image: {
 		layout: "constrained",
 		responsiveStyles: true,

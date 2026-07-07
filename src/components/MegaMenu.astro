@@ -64,7 +64,7 @@ function isActive(s: string): boolean {
 
     {topItems.map((item) => (
       <div class="cat-item">
-        <a href={"/productss?category="+item.slug} class:list={["cat-trigger", { active: isActive(item.slug) }]}>
+        <a href={"/products?category="+item.slug} class:list={["cat-trigger", { active: isActive(item.slug) }]}>
           {item.name}
           <span class="cat-count">({item.count})</span>
           {(item.children||[]).length>0 && <span class="arrow">▾</span>}

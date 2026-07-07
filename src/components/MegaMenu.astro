@@ -1,34 +1,7 @@
 ---
-import { getTaxonomyTerms, getEmDashCollection, getTermsForEntries } from "emdash";
+import { getTaxonomyTerms } from "emdash";
 
 const termTree = await getTaxonomyTerms("products1");
-
-// 收集所有 slug（所有层级）
-const allSlugs: string[] = [];
-function collectSlugs(terms: any[]) {
-  for (const t of terms) {
-    allSlugs.push(t.slug);
-    if (t.children) collectSlugs(t.children);
-  }
-}
-collectSlugs(termTree);
-
-// ===== 优化：2 次查询代替 24 次 =====
-// 1. 一次取出所有产品
-const { entries } = await getEmDashCollection("products");
-
-// 2. 一次批量查出所有产品的分类关联
-const entryIds = entries.map((e) => e.id).filter(Boolean);
-const termsByEntry = await getTermsForEntries("products", entryIds, "products1");
-
-// 3. 内存中统计每个分类下的产品数（零数据库查询）
-const countMap = new Map<string, number>();
-for (const terms of termsByEntry.values()) {
-  for (const term of terms) {
-    const slug = typeof term === "string" ? term : term.slug;
-    countMap.set(slug, (countMap.get(slug) || 0) + 1);
-  }
-}
 
 const url = new URL(Astro.request.url);
 const activeCategory = url.searchParams.get("category") || "";
@@ -36,22 +9,19 @@ const activeCategory = url.searchParams.get("category") || "";
 type MenuItem = {
   slug: string;
   name: string;
-  count: number;
-  children: { slug: string; name: string; count: number }[];
+  children: { slug: string; name: string }[];
 };
 
 function buildMenu(terms: any[]): MenuItem[] {
   return terms.map((t) => ({
     slug: t.slug,
     name: t.label,
-    count: countMap.get(t.slug) || 0,
     children: t.children ? buildMenu(t.children) : [],
   }));
 }
 
 const menuItems = buildMenu(termTree);
 
-// 展平为顶部导航项：L1 + (有子分类的 L2)
 const topItems: MenuItem[] = [];
 for (const l1 of menuItems) {
   topItems.push(l1);
@@ -75,7 +45,6 @@ function isActive(s: string): boolean {
       <div class="cat-item">
         <a href={"/products?category=" + item.slug} class:list={["cat-trigger", { active: isActive(item.slug) }]}>
           {item.name}
-          <span class="cat-count">({item.count})</span>
           {(item.children || []).length > 0 && <span class="arrow">▾</span>}
         </a>
         {(item.children || []).length > 0 && (
@@ -83,7 +52,6 @@ function isActive(s: string): boolean {
             {item.children.map((child) => (
               <a href={"/products?category=" + child.slug} class="cat-sub-link">
                 {child.name}
-                <span class="sub-count">({child.count})</span>
               </a>
             ))}
           </div>
@@ -93,7 +61,7 @@ function isActive(s: string): boolean {
   </div>
 </nav>
 
-<!-- 以下 style 和 script 部分不变 -->
+<!-- 以下 style 和 script 完全不变 -->
 <style is:global>
 .cat-menu{
   background:#fff;
@@ -145,8 +113,6 @@ function isActive(s: string): boolean {
 }
 .cat-trigger:hover{color:#000;border-color:#06c}
 .cat-trigger.active{color:#06c;border-color:#06c;font-weight:600}
-.cat-count{font-size:12px;color:#999;flex-shrink:0}
-.cat-trigger.active .cat-count{color:#06c}
 .arrow{font-size:11px;transition:transform .15s;flex-shrink:0}
 .cat-drop{
   position:absolute !important;
@@ -183,7 +149,6 @@ function isActive(s: string): boolean {
   white-space:nowrap;
 }
 .cat-sub-link:hover{background:#f0f6ff;color:#06c}
-.sub-count{font-size:11px;color:#aaa;flex-shrink:0}
 .cat-item:hover .arrow{transform:rotate(180deg)}
 @media(max-width:768px){.cat-menu{display:none}}
 </style>

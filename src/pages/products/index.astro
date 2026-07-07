@@ -15,7 +15,7 @@ if (selectedCategory) {
   filteredProducts = allProducts.filter((p) => matchedIds.has(p.id));
 }
 
-Astro.response.headers.set('CDN-Cache-Control', 'public, s-maxage=300, stale-while-revalidate=60');
+
 
 // ===== 分页 =====
 const PAGE_SIZE = 12;

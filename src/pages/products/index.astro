@@ -42,6 +42,8 @@ function getFirstImage(entry) {
     return pics[0]?.url || pics[0]?.src || pics[0] || "";
   } catch { return ""; }
 }
+
+Astro.response.headers.set('CDN-Cache-Control', 'public, s-maxage=300, stale-while-revalidate=60');
 ---
 
 <Base title="Products">
@@ -52,7 +54,7 @@ function getFirstImage(entry) {
       {displayProducts.map((product) => {
         const imgUrl = getFirstImage(product);
         return (
-          <a href={`/productss/${product.slug}`} class="product-card">
+          <a href={`/products/${product.slug}`} class="product-card">
             <div class="product-image">
               {imgUrl ? (
                 <img src={imgUrl} alt={product.data?.title || ""} loading="lazy" />

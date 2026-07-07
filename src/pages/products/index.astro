@@ -1,28 +1,48 @@
 ---
-import { getEmDashCollection, getEntriesByTerm } from "emdash";
+import { getEmDashCollection } from "emdash";
 import Base from "../../layouts/Base.astro";
-
-const { entries: allEntries } = await getEmDashCollection("products");
-const allProducts = allEntries || [];
 
 const url = new URL(Astro.request.url);
 const selectedCategory = url.searchParams.get("category");
 
-let filteredProducts = allProducts;
-if (selectedCategory) {
-  const matched = await getEntriesByTerm("products", "products1", selectedCategory);
-  const matchedIds = new Set(matched.map((m) => m.id));
-  filteredProducts = allProducts.filter((p) => matchedIds.has(p.id));
-}
-
-
-
-// ===== 分页 =====
 const PAGE_SIZE = 12;
 const currentPage = Math.max(1, parseInt(url.searchParams.get("page") || "1") || 1);
-const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
+
+// ── 总数：D1 直接 COUNT(*)，毫秒级，不传输任何产品 JSON ──
+// 失败则降级为「拉全部再统计」（与旧逻辑一致，慢但保证可用）
+let total = 0;
+try {
+  const db = (Astro.locals as any).runtime?.env?.DB;
+  if (!db) throw new Error("no-db");
+  let sql = `SELECT COUNT(*) AS c FROM ec_products`;
+  const args: string[] = [];
+  if (selectedCategory) {
+    sql = `SELECT COUNT(*) AS c
+      FROM ec_products p
+      JOIN content_taxonomies ct ON ct.collection = 'products' AND ct.entry_id = p.id
+      JOIN taxonomies t ON t.id = ct.taxonomy_id
+      WHERE t.name = 'products1' AND t.slug = ?`;
+    args.push(selectedCategory);
+  }
+  const row = await db.prepare(sql).bind(...args).first();
+  total = Number((row as any)?.c ?? 0);
+  if (!total) throw new Error("zero");
+} catch {
+  const { entries } = await getEmDashCollection(
+    "products",
+    selectedCategory ? { where: { products1: selectedCategory } } : {}
+  );
+  total = (entries || []).length;
+}
+
+// ── 当前页数据：只取本页 12 条，绝不全表拉取 ──
+const opts: any = { limit: currentPage * PAGE_SIZE, orderBy: { created_at: "desc" } };
+if (selectedCategory) opts.where = { products1: selectedCategory };
+const { entries } = await getEmDashCollection("products", opts);
+const displayProducts = (entries || []).slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 const safePage = Math.min(currentPage, totalPages);
-const displayProducts = filteredProducts.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
 function buildPageUrl(page: number): string {
   const u = new URL(url.toString());
@@ -31,7 +51,7 @@ function buildPageUrl(page: number): string {
   return u.pathname + u.search;
 }
 
-function getFirstImage(entry) {
+function getFirstImage(entry: any) {
   try {
     if (!entry?.data?.picture_json) return "";
     const raw = typeof entry.data.picture_json === "string"
@@ -49,7 +69,9 @@ Astro.response.headers.set('CDN-Cache-Control', 'public, s-maxage=300, stale-whi
 
 <Base title="Products">
   <div class="products-page">
-  
+    <div class="products-header">
+      <h1 class="page-title">Products</h1>
+    </div>
 
     <div class="products-grid">
       {displayProducts.map((product) => {
@@ -94,7 +116,6 @@ Astro.response.headers.set('CDN-Cache-Control', 'public, s-maxage=300, stale-whi
   .products-page { max-width: 1400px; margin: 0 auto; padding: 2rem; }
   .products-header { text-align: center; margin-bottom: 2.5rem; }
   .page-title { font-size: 1.75rem; font-weight: 700; color: #222; margin-bottom: 0.25rem; }
-  .page-subtitle { font-size: 0.95rem; color: #888; }
   .products-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; }
   .product-card { text-decoration: none; color: inherit; transition: transform 0.2s, box-shadow 0.2s; border-radius: 8px; overflow: hidden; background: #fff; border: 1px solid #f0f0f0; }
   .product-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); }

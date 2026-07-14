@@ -1,8 +1,18 @@
 ---
-import type { Product } from '../lib/types'
 import SectionHeader from './SectionHeader.astro'
 import ProductCard from './ProductCard.astro'
-import { getProductsBySection } from '../lib/api'
+
+interface Product {
+  id: string
+  title: string
+  description: string
+  image: string
+  link: string
+  tag?: string
+  section?: string
+  sort_order?: number
+  is_active?: boolean
+}
 
 export interface Props {
   products: Product[]
@@ -13,20 +23,18 @@ export interface Props {
 }
 
 const { products, title, subtitle, section, columns = 3 } = Astro.props
-const sectionProducts = getProductsBySection(products, section)
+const sectionProducts = products
+  .filter(p => p.section === section)
+  .sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999))
 ---
-
 <div class="product-grid-section">
   <SectionHeader title={title} subtitle={subtitle} />
   {sectionProducts.length > 0 ? (
     <div class="grid" data-columns={columns}>
       {sectionProducts.map(p => <ProductCard product={p} />)}
     </div>
-  ) : (
-    <p class="empty-hint">暂无内容</p>
-  )}
+  ) : <p class="empty-hint">暂无内容</p>}
 </div>
-
 <style>
   .product-grid-section { padding: 2.5rem 2rem; max-width: 1200px; margin: 0 auto; }
   .grid { display: grid; gap: 1rem; margin-top: 1.5rem; }

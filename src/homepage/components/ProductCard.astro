@@ -1,9 +1,15 @@
 ---
-import type { Product } from '../lib/types'
+interface Product {
+  id: string
+  title: string
+  description: string
+  image: string
+  link: string
+  tag?: string
+}
 export interface Props { product: Product }
 const { product } = Astro.props
 ---
-
 <a href={product.link} class="product-card">
   <div class="card-image">
     {product.image ? (
@@ -18,7 +24,6 @@ const { product } = Astro.props
     {product.description && <p class="card-desc">{product.description}</p>}
   </div>
 </a>
-
 <style>
   .product-card { display: block; border: 1px solid #EBEBEB; border-radius: 8px; overflow: hidden; text-decoration: none; color: inherit; transition: box-shadow 0.2s, transform 0.2s; cursor: pointer; }
   .product-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.06); transform: translateY(-2px); }

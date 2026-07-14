@@ -14,14 +14,6 @@ const { entry: heroEntry = null } = await getEmDashEntry('hero', 'home')
 const { entries: statEntries = [] } = await getEmDashCollection('stats', { status: 'published' })
   .catch(() => ({ entries: [] }))
 
-/* 调试：看分类相关字段 */
-const firstProduct = (allEntries as any[]).find((e: any) => e.data?.spu)
-const debugInfo = firstProduct ? {
-  category_slugs: firstProduct.data?.category_slugs,
-  terms: firstProduct.data?.terms,
-  danxuan: firstProduct.data?.danxuan,
-} : {}
-
 const products = (allEntries as any[])
   .filter((e: any) => e.data?.spu && e.data?.picture_json)
   .slice(0, 3)
@@ -43,13 +35,17 @@ const products = (allEntries as any[])
     }
     image = images[0] ?? ''
 
+    /* 从 terms.products1 数组里取末级分类 slug */
+    const terms = e.data?.terms?.products1 || []
+    const categorySlug = terms[terms.length - 1]?.slug || ''
+
     return {
       id: e.id,
       title: e.data?.title ?? '',
       description: e.data?.description ?? '',
       image,
       images,
-      link: `/products/${e.data.spu}`,
+      link: categorySlug ? `/products?category=${categorySlug}` : `/products/${e.data.spu}`,
       tag: e.data?.danxuan ?? '',
       section: 'solutions',
       sort_order: 0,
@@ -84,11 +80,6 @@ const stats = statEntries.length > 0
 ---
 
 <Layout title="EmDash — 智能热转印设备">
-
-  <pre style="background:#000;color:#0f0;padding:1rem;margin:0.5rem;font-size:11px;font-family:monospace;white-space:pre-wrap;word-break:break-all;border-radius:4px;">
-    {JSON.stringify(debugInfo, null, 2)}
-  </pre>
-
   <HeroBanner hero={hero} />
   <div style="background:#fff;">
     <ProductGrid products={products} title="一站式创意解决方案" subtitle="从设备到耗材，提供完整的热转印创作工具链" section="solutions" columns={3} />

@@ -14,15 +14,24 @@ const { entry: heroEntry = null } = await getEmDashEntry('hero', 'home')
 const { entries: statEntries = [] } = await getEmDashCollection('stats', { status: 'published' })
   .catch(() => ({ entries: [] }))
 
-/* 调试：查看第一条产品的分类字段 */
-const firstProduct = (allEntries as any[]).find((e: any) => e.data?.spu)
-const debugInfo = firstProduct ? {
-  products1: firstProduct.data?.products1,
-  category: firstProduct.data?.category,
-  category_path: firstProduct.data?.category_path,
-  category_slugs: firstProduct.data?.category_slugs,
-  category_slug: firstProduct.data?.category_slug,
-} : {}
+/* ── 用 D1 直接查询 products1 分类映射 ── */
+const db = (Astro.locals as any)?.runtime?.env?.DB
+const taxonomyMap = new Map<string, string>()
+if (db) {
+  try {
+    const { results } = await db.prepare(`
+      SELECT ct.entry_id, t.slug
+      FROM content_taxonomies ct
+      JOIN taxonomies t ON t.id = ct.taxonomy_id
+      WHERE ct.collection = 'products' AND t.name = 'products1'
+    `).all()
+    for (const r of (results || []) as any[]) {
+      taxonomyMap.set(r.entry_id, r.slug)
+    }
+  } catch (e) {
+    console.error('taxonomy query failed:', e)
+  }
+}
 
 const products = (allEntries as any[])
   .filter((e: any) => e.data?.spu && e.data?.picture_json)
@@ -45,14 +54,8 @@ const products = (allEntries as any[])
     }
     image = images[0] ?? ''
 
-    /* 解析分类 slug，取末级 */
-    let categorySlug = ''
-    const rawSlug = e.data?.products1 || e.data?.category_slug || e.data?.category || ''
-    if (rawSlug) {
-      const parts = String(rawSlug).split(/[/>]/).map(s => s.trim()).filter(Boolean)
-      categorySlug = parts[parts.length - 1] || ''
-      categorySlug = categorySlug.toLowerCase().replace(/\s+/g, '-')
-    }
+    /* 从 D1 关联表里查分类 slug */
+    const categorySlug = taxonomyMap.get(e.id) || ''
 
     return {
       id: e.id,
@@ -60,7 +63,7 @@ const products = (allEntries as any[])
       description: e.data?.description ?? '',
       image,
       images,
-      link: categorySlug ? `/products?category=${encodeURIComponent(categorySlug)}` : '/products',
+      link: categorySlug ? `/products?category=${categorySlug}` : '/products',
       tag: e.data?.danxuan ?? '',
       section: 'solutions',
       sort_order: 0,
@@ -95,12 +98,6 @@ const stats = statEntries.length > 0
 ---
 
 <Layout title="EmDash — 智能热转印设备">
-
-  {/* 调试框：部署后查看第一条产品的分类字段值，看完删掉 */}
-  <div style="background:#000;color:#0f0;padding:1rem;margin:0.5rem;font-size:12px;font-family:monospace;white-space:pre-wrap;border-radius:4px;">
-    {JSON.stringify(debugInfo, null, 2)}
-  </div>
-
   <HeroBanner hero={hero} />
   <div style="background:#fff;">
     <ProductGrid products={products} title="一站式创意解决方案" subtitle="从设备到耗材，提供完整的热转印创作工具链" section="solutions" columns={3} />

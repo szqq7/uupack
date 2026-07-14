@@ -1,6 +1,10 @@
 ---
-import type { StatItem } from '../lib/types'
 import SectionHeader from './SectionHeader.astro'
+
+interface StatItem {
+  number: string
+  label: string
+}
 
 export interface Props {
   stats: StatItem[]
@@ -10,7 +14,6 @@ export interface Props {
 
 const { stats, title = '全球用户的共同选择', subtitle = '已服务 50,000+ 创客与企业' } = Astro.props
 ---
-
 <div class="stats-section">
   <SectionHeader title={title} subtitle={subtitle} />
   <div class="stats-grid">
@@ -22,7 +25,6 @@ const { stats, title = '全球用户的共同选择', subtitle = '已服务 50,0
     ))}
   </div>
 </div>
-
 <style>
   .stats-section { padding: 2.5rem 2rem; background: #FAFAFA; }
   .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; max-width: 1200px; margin: 1.5rem auto 0; }

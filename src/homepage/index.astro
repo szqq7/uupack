@@ -1,0 +1,53 @@
+---
+import Layout from '../layouts/Base.astro'
+import HeroBanner from './components/HeroBanner.astro'
+import ProductGrid from './components/ProductGrid.astro'
+import StatsSection from './components/StatsSection.astro'
+import { fetchProducts, fetchHeroContent, fetchStats } from './lib/api'
+
+const [products, hero, stats] = await Promise.all([
+  fetchProducts().catch(() => []),
+  fetchHeroContent().catch(() => ({
+    badge_text: '', headline: '欢迎访问 EmDash', subheadline: '',
+    cta_text: '探索产品', cta_link: '/products', images: [],
+  })),
+  fetchStats().catch(() => [{ number: '0', label: '加载中' }]),
+])
+---
+
+<Layout title="EmDash — 智能热转印设备">
+  <HeroBanner hero={hero} />
+  <div style="background:#fff;">
+    <ProductGrid products={products} title="一站式创意解决方案" subtitle="从设备到耗材，提供完整的热转印创作工具链"
+      section="solutions" columns={3} />
+  </div>
+  <div style="background:#FAFAFA;">
+    <ProductGrid products={products} title="探索全系列产品" subtitle="超过 3000+ SKU，覆盖设备、耗材与配件"
+      section="product_grid" columns={2} />
+  </div>
+  <StatsSection stats={stats} />
+  <div class="newsletter">
+    <div class="newsletter-inner">
+      <span class="newsletter-tag">STAY IN TOUCH</span>
+      <h2 class="newsletter-title">获取最新资讯</h2>
+      <p class="newsletter-desc">订阅邮件，获取新品发布与专属优惠</p>
+      <form class="newsletter-form" onsubmit="return false">
+        <input type="email" placeholder="输入您的邮箱地址" class="newsletter-input" />
+        <button type="submit" class="newsletter-btn">订阅</button>
+      </form>
+    </div>
+  </div>
+</Layout>
+
+<style>
+  .newsletter { background: #111; padding: 2.5rem 2rem; text-align: center; }
+  .newsletter-inner { max-width: 480px; margin: 0 auto; }
+  .newsletter-tag { display: inline-block; color: #22C55E; font-size: 0.75rem; font-weight: 500; letter-spacing: 2px; margin-bottom: 0.5rem; }
+  .newsletter-title { font-size: 1.5rem; font-weight: 700; color: #FAF5E6; margin: 0 0 0.25rem; }
+  .newsletter-desc { font-size: 0.8125rem; color: #D8CDB5; margin: 0 0 1.25rem; }
+  .newsletter-form { display: flex; max-width: 380px; margin: 0 auto; }
+  .newsletter-input { flex: 1; background: #FAF5E6; border: none; padding: 0.625rem 1rem; font-size: 0.8125rem; color: #333; border-radius: 4px 0 0 4px; outline: none; }
+  .newsletter-input::placeholder { color: #BFAF8E; }
+  .newsletter-btn { background: #22C55E; color: #fff; border: none; padding: 0.625rem 1.25rem; font-size: 0.8125rem; font-weight: 600; border-radius: 0 4px 4px 0; cursor: pointer; }
+  .newsletter-btn:hover { background: #1DA34E; }
+</style>

@@ -8,7 +8,10 @@ import StatsSection from './components/StatsSection.astro'
 const allEntries = await getCollection('_emdash').catch(() => [])
 
 const products = allEntries
-  .filter(e => (e.data.type === 'product' || e.data._type === 'product'))
+  .filter(e => {
+    const t = e.data._type || e.data.type || ''
+    return t === 'product' || t === 'products'
+  })
   .map(e => ({
     id: e.id, title: e.data.title ?? '', description: e.data.description ?? '',
     image: e.data.image ?? '', images: Array.isArray(e.data.images) ? e.data.images : [],

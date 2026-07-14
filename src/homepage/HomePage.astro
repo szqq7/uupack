@@ -14,7 +14,7 @@ const { entry: heroEntry = null } = await getEmDashEntry('hero', 'home')
 const { entries: statEntries = [] } = await getEmDashCollection('stats', { status: 'published' })
   .catch(() => ({ entries: [] }))
 
-// ── 调试：看看第一条产品的分类字段 ──
+/* 调试：查看第一条产品的分类字段 */
 const firstProduct = (allEntries as any[]).find((e: any) => e.data?.spu)
 const debugInfo = firstProduct ? {
   products1: firstProduct.data?.products1,
@@ -24,7 +24,6 @@ const debugInfo = firstProduct ? {
   category_slug: firstProduct.data?.category_slug,
 } : {}
 
-// ── 产品数据处理（3 条） ──
 const products = (allEntries as any[])
   .filter((e: any) => e.data?.spu && e.data?.picture_json)
   .slice(0, 3)
@@ -46,14 +45,12 @@ const products = (allEntries as any[])
     }
     image = images[0] ?? ''
 
-    // 解析分类 slug，取末级
+    /* 解析分类 slug，取末级 */
     let categorySlug = ''
     const rawSlug = e.data?.products1 || e.data?.category_slug || e.data?.category || ''
     if (rawSlug) {
-      // 如果是多级路径如 "Company News > Industry trends > AI Technology"，取最后一段
       const parts = String(rawSlug).split(/[/>]/).map(s => s.trim()).filter(Boolean)
       categorySlug = parts[parts.length - 1] || ''
-      // 转成小写+连字符格式
       categorySlug = categorySlug.toLowerCase().replace(/\s+/g, '-')
     }
 
@@ -99,7 +96,7 @@ const stats = statEntries.length > 0
 
 <Layout title="EmDash — 智能热转印设备">
 
-  {* 调试：查看第一条产品的分类字段值 — 部署后看一眼就删 *}
+  {/* 调试框：部署后查看第一条产品的分类字段值，看完删掉 */}
   <div style="background:#000;color:#0f0;padding:1rem;margin:0.5rem;font-size:12px;font-family:monospace;white-space:pre-wrap;border-radius:4px;">
     {JSON.stringify(debugInfo, null, 2)}
   </div>
@@ -121,6 +118,7 @@ const stats = statEntries.length > 0
     </div>
   </div>
 </Layout>
+
 <style>
   .newsletter{background:#111;padding:2.5rem 2rem;text-align:center}
   .newsletter-inner{max-width:480px;margin:0 auto}

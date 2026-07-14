@@ -14,19 +14,13 @@ const { entry: heroEntry = null } = await getEmDashEntry('hero', 'home')
 const { entries: statEntries = [] } = await getEmDashCollection('stats', { status: 'published' })
   .catch(() => ({ entries: [] }))
 
-/* 临时调试：在页面顶部显示所有字段名 */
+/* 调试：看分类相关字段 */
 const firstProduct = (allEntries as any[]).find((e: any) => e.data?.spu)
 const debugInfo = firstProduct ? {
-  id: firstProduct.id,
-  data_keys: Object.keys(firstProduct.data || {}),
-  all_keys: Object.keys(firstProduct || {}),
-  data_sample: {
-    title: firstProduct.data?.title,
-    spu: firstProduct.data?.spu,
-    products1: firstProduct.data?.products1,
-    category: firstProduct.data?.category,
-  }
-} : { error: 'no product found' }
+  category_slugs: firstProduct.data?.category_slugs,
+  terms: firstProduct.data?.terms,
+  danxuan: firstProduct.data?.danxuan,
+} : {}
 
 const products = (allEntries as any[])
   .filter((e: any) => e.data?.spu && e.data?.picture_json)
@@ -91,7 +85,6 @@ const stats = statEntries.length > 0
 
 <Layout title="EmDash — 智能热转印设备">
 
-  {/* 调试框：部署后看第一条产品有什么字段 */}
   <pre style="background:#000;color:#0f0;padding:1rem;margin:0.5rem;font-size:11px;font-family:monospace;white-space:pre-wrap;word-break:break-all;border-radius:4px;">
     {JSON.stringify(debugInfo, null, 2)}
   </pre>

@@ -17,39 +17,45 @@ const { entry: heroEntry = null } = await getEmDashEntry('hero', 'home')
 const { entries: statEntries = [] } = await getEmDashCollection('stats', { status: 'published' })
   .catch(() => ({ entries: [] }))
 
-// ── 产品数据处理 ──
-const products = (allEntries as any[]).map((e: any) => {
-  // 解析 picture_json（数组 [{url:"..."}] 格式）
-  let images: string[] = []
-  let image = ''
-  const raw = e.data?.picture_json
-  let list: any[] = []
-  if (typeof raw === 'string') {
-    try { list = JSON.parse(raw) } catch { list = [] }
-  } else if (Array.isArray(raw)) {
-    list = raw
-  } else if (raw && typeof raw === 'object') {
-    list = [raw]
-  }
-  for (const item of list) {
-    if (item && typeof item === 'object' && item.url) images.push(item.url)
-    else if (typeof item === 'string') images.push(item)
-  }
-  image = images[0] ?? ''
+// ── 产品数据处理（只取 3 条） ──
+const products = (allEntries as any[])
+  .filter((e: any) => e.data?.spu && e.data?.picture_json)
+  .slice(0, 3)
+  .map((e: any) => {
+    let images: string[] = []
+    let image = ''
+    const raw = e.data?.picture_json
+    let list: any[] = []
+    if (typeof raw === 'string') {
+      try { list = JSON.parse(raw) } catch { list = [] }
+    } else if (Array.isArray(raw)) {
+      list = raw
+    } else if (raw && typeof raw === 'object') {
+      list = [raw]
+    }
+    for (const item of list) {
+      if (item && typeof item === 'object' && item.url) images.push(item.url)
+      else if (typeof item === 'string') images.push(item)
+    }
+    image = images[0] ?? ''
 
-  return {
-    id: e.id,
-    title: e.data?.title ?? '',
-    description: e.data?.description ?? '',
-    image,
-    images,
-    link: e.data?.spu ? `/products/${e.data.spu}` : '#',
-    tag: e.data?.danxuan ?? '',
-    section: 'solutions',
-    sort_order: 0,
-    is_active: true,
-  }
-})
+    // 分类 slug：取第一级分类
+    const categorySlug = (e.data?.category_slugs?.[0] || e.data?.category || e.data?.category_path || '').toString()
+      .replace(/^\/+|\/+$/g, '')
+
+    return {
+      id: e.id,
+      title: e.data?.title ?? '',
+      description: e.data?.description ?? '',
+      image,
+      images,
+      link: categorySlug ? `/products?category=${categorySlug}` : `/products/${e.data.spu}`,
+      tag: e.data?.danxuan ?? '',
+      section: 'solutions',
+      sort_order: 0,
+      is_active: true,
+    }
+  })
 
 // ── Hero 数据处理 ──
 const hero = heroEntry ? {
@@ -89,16 +95,6 @@ const stats = statEntries.length > 0
       subtitle="从设备到耗材，提供完整的热转印创作工具链"
       section="solutions"
       columns={3}
-    />
-  </div>
-
-  <div style="background:#FAFAFA;">
-    <ProductGrid
-      products={products}
-      title="探索全系列产品"
-      subtitle="超过 3000+ SKU，覆盖设备、耗材与配件"
-      section="solutions"
-      columns={2}
     />
   </div>
 

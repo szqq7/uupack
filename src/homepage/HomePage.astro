@@ -14,6 +14,36 @@ const { entry: heroEntry = null } = await getEmDashEntry('hero', 'home')
 const { entries: statEntries = [] } = await getEmDashCollection('stats', { status: 'published' })
   .catch(() => ({ entries: [] }))
 
+/* 找到末级分类（depth 最深的 term） */
+function findLeafTerm(terms: any[]): any {
+  if (!terms || terms.length === 0) return null
+  if (terms.length === 1) return terms[0]
+
+  function getDepth(t: any): number {
+    let d = 0
+    let cur = t
+    const seen = new Set<string>()
+    while (cur) {
+      const pid = Array.isArray(cur.parentId) ? cur.parentId[0] : cur.parentId
+      if (!pid || seen.has(pid)) break
+      seen.add(pid)
+      const parent = terms.find(x => x.id === pid)
+      if (!parent) break
+      d++
+      cur = parent
+    }
+    return d
+  }
+
+  let deepest = terms[0]
+  let maxDepth = getDepth(terms[0])
+  for (const t of terms) {
+    const d = getDepth(t)
+    if (d > maxDepth) { maxDepth = d; deepest = t }
+  }
+  return deepest
+}
+
 const products = (allEntries as any[])
   .filter((e: any) => e.data?.spu && e.data?.picture_json)
   .slice(0, 3)
@@ -35,9 +65,10 @@ const products = (allEntries as any[])
     }
     image = images[0] ?? ''
 
-    /* 从 terms.products1 数组里取末级分类 slug */
+    /* 从 terms.products1 中找末级分类（最深的那一级） */
     const terms = e.data?.terms?.products1 || []
-    const categorySlug = terms[terms.length - 1]?.slug || ''
+    const leaf = findLeafTerm(terms)
+    const categorySlug = leaf?.slug || ''
 
     return {
       id: e.id,

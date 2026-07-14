@@ -14,24 +14,19 @@ const { entry: heroEntry = null } = await getEmDashEntry('hero', 'home')
 const { entries: statEntries = [] } = await getEmDashCollection('stats', { status: 'published' })
   .catch(() => ({ entries: [] }))
 
-/* ── 用 D1 直接查询 products1 分类映射 ── */
-const db = (Astro.locals as any)?.runtime?.env?.DB
-const taxonomyMap = new Map<string, string>()
-if (db) {
-  try {
-    const { results } = await db.prepare(`
-      SELECT ct.entry_id, t.slug
-      FROM content_taxonomies ct
-      JOIN taxonomies t ON t.id = ct.taxonomy_id
-      WHERE ct.collection = 'products' AND t.name = 'products1'
-    `).all()
-    for (const r of (results || []) as any[]) {
-      taxonomyMap.set(r.entry_id, r.slug)
-    }
-  } catch (e) {
-    console.error('taxonomy query failed:', e)
+/* 临时调试：在页面顶部显示所有字段名 */
+const firstProduct = (allEntries as any[]).find((e: any) => e.data?.spu)
+const debugInfo = firstProduct ? {
+  id: firstProduct.id,
+  data_keys: Object.keys(firstProduct.data || {}),
+  all_keys: Object.keys(firstProduct || {}),
+  data_sample: {
+    title: firstProduct.data?.title,
+    spu: firstProduct.data?.spu,
+    products1: firstProduct.data?.products1,
+    category: firstProduct.data?.category,
   }
-}
+} : { error: 'no product found' }
 
 const products = (allEntries as any[])
   .filter((e: any) => e.data?.spu && e.data?.picture_json)
@@ -54,16 +49,13 @@ const products = (allEntries as any[])
     }
     image = images[0] ?? ''
 
-    /* 从 D1 关联表里查分类 slug */
-    const categorySlug = taxonomyMap.get(e.id) || ''
-
     return {
       id: e.id,
       title: e.data?.title ?? '',
       description: e.data?.description ?? '',
       image,
       images,
-      link: categorySlug ? `/products?category=${categorySlug}` : '/products',
+      link: `/products/${e.data.spu}`,
       tag: e.data?.danxuan ?? '',
       section: 'solutions',
       sort_order: 0,
@@ -98,6 +90,12 @@ const stats = statEntries.length > 0
 ---
 
 <Layout title="EmDash — 智能热转印设备">
+
+  {/* 调试框：部署后看第一条产品有什么字段 */}
+  <pre style="background:#000;color:#0f0;padding:1rem;margin:0.5rem;font-size:11px;font-family:monospace;white-space:pre-wrap;word-break:break-all;border-radius:4px;">
+    {JSON.stringify(debugInfo, null, 2)}
+  </pre>
+
   <HeroBanner hero={hero} />
   <div style="background:#fff;">
     <ProductGrid products={products} title="一站式创意解决方案" subtitle="从设备到耗材，提供完整的热转印创作工具链" section="solutions" columns={3} />

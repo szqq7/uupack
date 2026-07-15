@@ -11,13 +11,15 @@ const { entry: heroEntry = null } = await getEmDashEntry('hero', 'home')
 const { entries: statEntries = [] } = await getEmDashCollection('stats', { status: 'published' })
   .catch(() => ({ entries: [] }))
 
-/* ── 首页卡片：从 block1 内容类型读取 ── */
 const { entries: cardEntries = [] } = await getEmDashCollection('block1', { status: 'published', orderBy: { sort_order: 'asc' } })
   .catch(() => ({ entries: [] }))
 
 function extractImageUrl(item: any): string {
   if (!item) return ''
   if (typeof item === 'string') return item
+  if (item?.meta?.storageKey) {
+    return `/_emdash/api/media/file/${item.meta.storageKey}`
+  }
   if (item?.url?.meta?.storageKey) {
     return `/_emdash/api/media/file/${item.url.meta.storageKey}`
   }
@@ -26,7 +28,7 @@ function extractImageUrl(item: any): string {
     if (item.url.meta?.storageKey) {
       return `/_emdash/api/media/file/${item.url.meta.storageKey}`
     }
-    if (item.url.url) return item.url.url
+    if (item.url.url && typeof item.url.url === 'string') return item.url.url
   }
   return item?.src || item?.file || ''
 }
@@ -38,7 +40,7 @@ const cards = (cardEntries as any[])
     id: e.id,
     title: e.data?.title ?? '',
     description: '',
-    image: extractImageUrl({ url: e.data?.image }),
+    image: extractImageUrl(e.data?.image),
     images: [],
     link: e.data?.link || '/products',
     tag: '',

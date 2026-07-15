@@ -18,7 +18,6 @@ const { entries: statEntries = [] } = await getEmDashCollection('stats', { statu
 function findLeafTerm(terms: any[]): any {
   if (!terms || terms.length === 0) return null
   if (terms.length === 1) return terms[0]
-
   function getDepth(t: any): number {
     let d = 0
     let cur = t
@@ -34,7 +33,6 @@ function findLeafTerm(terms: any[]): any {
     }
     return d
   }
-
   let deepest = terms[0]
   let maxDepth = getDepth(terms[0])
   for (const t of terms) {
@@ -65,7 +63,6 @@ const products = (allEntries as any[])
     }
     image = images[0] ?? ''
 
-    /* 从 terms.products1 中找末级分类（最深的那一级） */
     const terms = e.data?.terms?.products1 || []
     const leaf = findLeafTerm(terms)
     const categorySlug = leaf?.slug || ''
@@ -76,7 +73,7 @@ const products = (allEntries as any[])
       description: e.data?.description ?? '',
       image,
       images,
-      link: categorySlug ? `/products?category=${categorySlug}` : `/products/${e.data.spu}`,
+      link: categorySlug ? `/products?category=${categorySlug}` : '/products',
       tag: e.data?.danxuan ?? '',
       section: 'solutions',
       sort_order: 0,
@@ -90,7 +87,17 @@ const hero = heroEntry ? {
   subheadline: heroEntry.data?.subheadline ?? '',
   cta_text: heroEntry.data?.cta_text ?? '探索产品',
   cta_link: heroEntry.data?.cta_link ?? '/products',
-  images: Array.isArray(heroEntry.data?.images) ? heroEntry.data.images : [],
+
+  /* 从重复器 [{url:...}, {url:...}] 提取图片 URL 数组 */
+  images: (() => {
+    const raw = heroEntry.data?.images
+    if (Array.isArray(raw)) {
+      return raw.map((item: any) => item?.url || '').filter(Boolean)
+    }
+    return []
+  })(),
+
+  interval: heroEntry.data?.images_interval || 4,
 } : {
   badge_text: '',
   headline: '欢迎访问 EmDash',
@@ -98,6 +105,7 @@ const hero = heroEntry ? {
   cta_text: '探索产品',
   cta_link: '/products',
   images: [],
+  interval: 4,
 }
 
 const stats = statEntries.length > 0

@@ -32,8 +32,20 @@ for (const l1 of menuItems) {
   }
 }
 
+/* 当前分类完全匹配 */
 function isActive(s: string): boolean {
   return activeCategory === s || (!activeCategory && s === "");
+}
+
+/* 当前分类是该菜单项的子孙节点（用于三级分类高亮父菜单） */
+function hasActiveDescendant(item: MenuItem): boolean {
+  if (item.slug === activeCategory) return true;
+  if (item.children) {
+    for (const c of item.children) {
+      if (hasActiveDescendant(c)) return true;
+    }
+  }
+  return false;
 }
 ---
 
@@ -43,14 +55,16 @@ function isActive(s: string): boolean {
 
     {topItems.map((item) => (
       <div class="cat-item">
-        <a href={"/products?category=" + item.slug} class:list={["cat-trigger", { active: isActive(item.slug) }]}>
+        <a href={"/products?category=" + item.slug}
+           class:list={["cat-trigger", { active: isActive(item.slug) || hasActiveDescendant(item) }]}>
           {item.name}
           {(item.children || []).length > 0 && <span class="arrow">▾</span>}
         </a>
         {(item.children || []).length > 0 && (
           <div class="cat-drop">
             {item.children.map((child) => (
-              <a href={"/products?category=" + child.slug} class="cat-sub-link">
+              <a href={"/products?category=" + child.slug}
+                 class:list={["cat-sub-link", { active: isActive(child.slug) || hasActiveDescendant(child) }]}>
                 {child.name}
               </a>
             ))}
@@ -61,7 +75,6 @@ function isActive(s: string): boolean {
   </div>
 </nav>
 
-<!-- 以下 style 和 script 完全不变 -->
 <style is:global>
 .cat-menu{
   background:#fff;
@@ -148,32 +161,6 @@ function isActive(s: string): boolean {
   text-decoration:none;
   white-space:nowrap;
 }
-.cat-sub-link:hover{background:#f0f6ff;color:#06c}
-.cat-item:hover .arrow{transform:rotate(180deg)}
-@media(max-width:768px){.cat-menu{display:none}}
+.cat-sub-link:hover{background:#f0f7ff;color:#06c}
+.cat-sub-link.active{background:#e6f2ff;color:#06c;font-weight:600}
 </style>
-
-<script define:vars={{menuItems: topItems}}>
-window.__megaMenuInit = function() {
-  document.querySelectorAll('.cat-item').forEach(function(item) {
-    var drop = item.querySelector('.cat-drop');
-    if (!drop) return;
-    var trigger = item.querySelector('.cat-trigger');
-    trigger.addEventListener('mouseenter', function() {
-      drop.style.opacity = '1';
-      drop.style.visibility = 'visible';
-      drop.style.transform = 'translateY(0)';
-    });
-    item.addEventListener('mouseleave', function() {
-      drop.style.opacity = '0';
-      drop.style.visibility = 'hidden';
-      drop.style.transform = 'translateY(-4px)';
-    });
-  });
-};
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', window.__megaMenuInit);
-} else {
-  window.__megaMenuInit();
-}
-</script>

@@ -11,11 +11,10 @@ const { entry: heroEntry = null } = await getEmDashEntry('hero', 'home')
 const { entries: statEntries = [] } = await getEmDashCollection('stats', { status: 'published' })
   .catch(() => ({ entries: [] }))
 
-/* Hblock：多条记录，每条含 N 张卡；headline/subheadline 用第一条的 */
+/* Hblock：先按 sort_order 排序，提取后过滤 is_visible=false 的 */
 const { entries: hblockEntries = [] } = await getEmDashCollection('hblock', { status: 'published', orderBy: { sort_order: 'asc' } })
   .catch(() => ({ entries: [] }))
 
-/* 从一条记录里提取最多 3 张卡 */
 function extractCardsFromEntry(entry: any): any[] {
   const item = entry.data ?? entry
   const cards: any[] = []
@@ -38,13 +37,17 @@ function extractCardsFromEntry(entry: any): any[] {
   return cards
 }
 
-/* 第一条记录用于取标题 */
 const firstItem = hblockEntries[0]?.data ?? hblockEntries[0] ?? {}
 const sectionTitle = firstItem?.headline ?? '一站式创意解决方案'
 const sectionSubtitle = firstItem?.subheadline ?? '从设备到耗材，提供完整的热转印创作工具链'
 
-/* 展平所有卡，取前 3 张 */
-const allCards = hblockEntries.flatMap(extractCardsFromEntry)
+/* ── 关键改动：过滤 is_visible=false 的记录 ── */
+const allCards = hblockEntries
+  .filter((e: any) => {
+    const item = e.data ?? e
+    return item?.is_visible !== false  // 默认可见，false 才隐藏
+  })
+  .flatMap(extractCardsFromEntry)
 const cards = allCards.slice(0, 3)
 
 const hero = heroEntry ? {

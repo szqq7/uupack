@@ -49,7 +49,9 @@ function extractImageUrl(item: any): string {
 const _debug = (cardEntries as any[]).slice(0, 1).map(e => ({
   keys: Object.keys(e.data || {}),
   image: e.data?.image,
+  image_url: e.data?.image_url,
   item_image: e.data?.item?.image,
+  item_image_url: e.data?.item?.image_url,
   item_keys: Object.keys(e.data?.item || {}),
 }))
 
@@ -61,7 +63,7 @@ const cards = (cardEntries as any[])
   .slice(0, 3)
   .map((e: any) => {
     const item = e.data?.item ?? e.data
-    const imageField = item?.image ?? item?.picture_json ?? item?.图片 ?? item?.cover ?? item?.thumbnail ?? item?.photo
+    const imageField = item?.image_url ?? item?.image ?? item?.picture_json ?? item?.图片 ?? item?.cover ?? item?.thumbnail ?? item?.photo
     return {
       id: e.id,
       title: item?.title ?? '',

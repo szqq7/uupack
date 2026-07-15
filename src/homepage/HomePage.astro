@@ -11,11 +11,11 @@ const { entry: heroEntry = null } = await getEmDashEntry('hero', 'home')
 const { entries: statEntries = [] } = await getEmDashCollection('stats', { status: 'published' })
   .catch(() => ({ entries: [] }))
 
-/* Hblock：每条记录含 N 张卡（title1-3, img_url1-3, img1-3），记录按 sort_order 排序 */
+/* Hblock：多条记录，每条含 N 张卡；headline/subheadline 用第一条的 */
 const { entries: hblockEntries = [] } = await getEmDashCollection('hblock', { status: 'published', orderBy: { sort_order: 'asc' } })
   .catch(() => ({ entries: [] }))
 
-/* 从一条 Hblock 记录里提取最多 3 张卡（title1→title2→title3 顺序） */
+/* 从一条记录里提取最多 3 张卡 */
 function extractCardsFromEntry(entry: any): any[] {
   const item = entry.data ?? entry
   const cards: any[] = []
@@ -24,7 +24,7 @@ function extractCardsFromEntry(entry: any): any[] {
     if (!title) continue
     cards.push({
       id: `${entry.id}-${i}`,
-      title: title,
+      title,
       description: '',
       image: item[`img${i}`] ?? '',
       images: [],
@@ -38,7 +38,12 @@ function extractCardsFromEntry(entry: any): any[] {
   return cards
 }
 
-/* 展平所有 card，取前 3 张 */
+/* 第一条记录用于取标题 */
+const firstItem = hblockEntries[0]?.data ?? hblockEntries[0] ?? {}
+const sectionTitle = firstItem?.headline ?? '一站式创意解决方案'
+const sectionSubtitle = firstItem?.subheadline ?? '从设备到耗材，提供完整的热转印创作工具链'
+
+/* 展平所有卡，取前 3 张 */
 const allCards = hblockEntries.flatMap(extractCardsFromEntry)
 const cards = allCards.slice(0, 3)
 
@@ -85,7 +90,7 @@ const stats = statEntries.length > 0
 <Layout title="EmDash — 智能热转印设备">
   <HeroBanner hero={hero} />
   <div style="background:#fff;">
-    <ProductGrid products={cards} title="一站式创意解决方案" subtitle="从设备到耗材，提供完整的热转印创作工具链" section="solutions" columns={3} />
+    <ProductGrid products={cards} title={sectionTitle} subtitle={sectionSubtitle} section="solutions" columns={3} />
   </div>
   <StatsSection stats={stats} />
   <div class="newsletter">

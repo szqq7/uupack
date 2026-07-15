@@ -11,11 +11,10 @@ const { entry: heroEntry = null } = await getEmDashEntry('hero', 'home')
 const { entries: statEntries = [] } = await getEmDashCollection('stats', { status: 'published' })
   .catch(() => ({ entries: [] }))
 
-/* ── 首页卡片：从 blog1 内容类型读取，运营在 EmDash 后台管理 ── */
-const { entries: cardEntries = [] } = await getEmDashCollection('blog1', { status: 'published', orderBy: { sort_order: 'asc' } })
+/* ── 首页卡片：从 block1 内容类型读取 ── */
+const { entries: cardEntries = [] } = await getEmDashCollection('block1', { status: 'published', orderBy: { sort_order: 'asc' } })
   .catch(() => ({ entries: [] }))
 
-/* 从 EmDash 媒体库数据结构中提取图片 URL */
 function extractImageUrl(item: any): string {
   if (!item) return ''
   if (typeof item === 'string') return item
@@ -48,7 +47,6 @@ const cards = (cardEntries as any[])
     is_active: true,
   }))
 
-/* ── Hero 横幅数据 ── */
 const hero = heroEntry ? {
   badge_text: heroEntry.data?.badge_text ?? '',
   headline: heroEntry.data?.headline ?? '欢迎访问',
@@ -73,7 +71,6 @@ const hero = heroEntry ? {
   interval: 4,
 }
 
-/* ── 统计数据 ── */
 const stats = statEntries.length > 0
   ? statEntries.map((s: any) => ({ number: String(s.data?.number ?? '0'), label: s.data?.label ?? '' }))
   : [

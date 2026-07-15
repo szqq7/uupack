@@ -81,21 +81,29 @@ const products = (allEntries as any[])
     }
   })
 
-/* 解析 Hero 轮播图 URL：兼容多种 EmDash 图片存储格式 */
+/* 从 EmDash 媒体库数据结构中提取图片 URL */
 function extractImageUrl(item: any): string {
   if (!item) return ''
   if (typeof item === 'string') return item
-  // 尝试直接 url 字段
-  if (item?.url) {
-    if (typeof item.url === 'string') return item.url
-    // url 字段本身是对象 => 递归
-    if (typeof item.url === 'object') return extractImageUrl(item.url)
+  
+  /* EmDash 媒体库：item.url.meta.storageKey → /_emdash/api/media/file/{key} */
+  if (item?.url?.meta?.storageKey) {
+    return `/_emdash/api/media/file/${item.url.meta.storageKey}`
   }
-  // 尝试其他常见字段
-  return item?.src || item?.file || item?.path || item?.secure_url || ''
+  
+  /* 备选：item.url 是字符串 */
+  if (typeof item?.url === 'string') return item.url
+  
+  /* 备选：item.url 是对象 */
+  if (typeof item?.url === 'object' && item.url !== null) {
+    if (item.url.meta?.storageKey) {
+      return `/_emdash/api/media/file/${item.url.meta.storageKey}`
+    }
+    if (item.url.url) return item.url.url
+  }
+  
+  return item?.src || item?.file || ''
 }
-
-const heroImagesRaw = JSON.stringify(heroEntry?.data?.images)
 
 const hero = heroEntry ? {
   badge_text: heroEntry.data?.badge_text ?? '',
@@ -132,9 +140,12 @@ const stats = statEntries.length > 0
       { number: '99.2%', label: '好评率' },
     ]
 ---
-<!-- HERO_IMAGES: {heroImagesRaw} -->
 
 <Layout title="EmDash — 智能热转印设备">
+  {/* 调试：部署后按 F12 → Console 查看 hero images 原始数据 */}
+  <script define:vars={{ _heroDebug: heroEntry?.data?.images }}>
+    console.log('🔍 HERO IMAGES:', _heroDebug)
+  </script>
   <HeroBanner hero={hero} />
   <div style="background:#fff;">
     <ProductGrid products={products} title="一站式创意解决方案" subtitle="从设备到耗材，提供完整的热转印创作工具链" section="solutions" columns={3} />

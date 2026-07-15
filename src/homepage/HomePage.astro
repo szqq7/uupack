@@ -45,7 +45,7 @@ function findLeafTerm(terms: any[]): any {
 }
 
 const products = (allEntries as any[])
-  .filter((e: any) => e.data?.spu && e.data?.picture_json)
+  .filter((e: any) => e.data?.picture_json)
   .slice(0, 3)
   .map((e: any) => {
     let images: string[] = []

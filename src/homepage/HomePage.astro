@@ -14,7 +14,6 @@ const { entries: statEntries = [] } = await getEmDashCollection('stats', { statu
 const { entries: cardEntries = [] } = await getEmDashCollection('block1', { status: 'published', orderBy: { sort_order: 'asc' } })
   .catch(() => ({ entries: [] }))
 
-/* 万能递归搜索：自动找到任何 URL 或 storageKey */
 function extractImageUrl(item: any): string {
   if (!item || item === null || item === undefined) return ''
   if (typeof item === 'string') return item
@@ -22,6 +21,7 @@ function extractImageUrl(item: any): string {
 
   if (item.storageKey) return `/_emdash/api/media/file/${item.storageKey}`
   if (item.meta?.storageKey) return `/_emdash/api/media/file/${item.meta.storageKey}`
+  if (item.providerUrl) return item.providerUrl
 
   for (const key of ['url', 'src', 'href', 'file', 'path', 'secure_url', 'source']) {
     const val = item[key]
@@ -44,20 +44,26 @@ function extractImageUrl(item: any): string {
 }
 
 const cards = (cardEntries as any[])
-  .filter((e: any) => e.data?.is_visible !== false)
+  .filter((e: any) => {
+    const item = e.data?.item ?? e.data
+    return item?.is_visible !== false
+  })
   .slice(0, 3)
-  .map((e: any) => ({
-    id: e.id,
-    title: e.data?.title ?? '',
-    description: '',
-    image: extractImageUrl(e.data?.image),
-    images: [],
-    link: e.data?.link || '/products',
-    tag: '',
-    section: 'solutions',
-    sort_order: e.data?.sort_order ?? 0,
-    is_active: true,
-  }))
+  .map((e: any) => {
+    const item = e.data?.item ?? e.data
+    return {
+      id: e.id,
+      title: item?.title ?? '',
+      description: '',
+      image: extractImageUrl(item?.image),
+      images: [],
+      link: item?.link || '/products',
+      tag: '',
+      section: 'solutions',
+      sort_order: item?.sort_order ?? 0,
+      is_active: true,
+    }
+  })
 
 const hero = heroEntry ? {
   badge_text: heroEntry.data?.badge_text ?? '',

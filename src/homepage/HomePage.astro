@@ -14,14 +14,17 @@ const { entries: statEntries = [] } = await getEmDashCollection('stats', { statu
 const { entries: cardEntries = [] } = await getEmDashCollection('block1', { status: 'published', orderBy: { sort_order: 'asc' } })
   .catch(() => ({ entries: [] }))
 
+/* 多层兼容：同时处理单图字段和重复器子字段 */
 function extractImageUrl(item: any): string {
   if (!item || item === null || item === undefined) return ''
   if (typeof item === 'string') return item
   if (typeof item !== 'object') return ''
 
   if (item.storageKey) return `/_emdash/api/media/file/${item.storageKey}`
-  if (item.meta?.storageKey) return `/_emdash/api/media/file/${item.meta.storageKey}`
   if (item.providerUrl) return item.providerUrl
+  if (item.url?.providerUrl) return item.url.providerUrl
+  if (item.url?.meta?.storageKey) return `/_emdash/api/media/file/${item.url.meta.storageKey}`
+  if (item.meta?.storageKey) return `/_emdash/api/media/file/${item.meta.storageKey}`
 
   for (const key of ['url', 'src', 'href', 'file', 'path', 'secure_url', 'source']) {
     const val = item[key]
@@ -43,6 +46,13 @@ function extractImageUrl(item: any): string {
   return ''
 }
 
+const _debug = (cardEntries as any[]).slice(0, 1).map(e => ({
+  keys: Object.keys(e.data || {}),
+  image: e.data?.image,
+  item_image: e.data?.item?.image,
+  item_keys: Object.keys(e.data?.item || {}),
+}))
+
 const cards = (cardEntries as any[])
   .filter((e: any) => {
     const item = e.data?.item ?? e.data
@@ -51,11 +61,12 @@ const cards = (cardEntries as any[])
   .slice(0, 3)
   .map((e: any) => {
     const item = e.data?.item ?? e.data
+    const imageField = item?.image ?? item?.picture_json ?? item?.图片 ?? item?.cover ?? item?.thumbnail ?? item?.photo
     return {
       id: e.id,
       title: item?.title ?? '',
       description: '',
-      image: extractImageUrl(item?.image),
+      image: extractImageUrl(imageField),
       images: [],
       link: item?.link || '/products',
       tag: '',
@@ -100,6 +111,7 @@ const stats = statEntries.length > 0
 ---
 
 <Layout title="EmDash — 智能热转印设备">
+  <!-- DEBUG: {JSON.stringify(_debug)} -->
   <HeroBanner hero={hero} />
   <div style="background:#fff;">
     <ProductGrid products={cards} title="一站式创意解决方案" subtitle="从设备到耗材，提供完整的热转印创作工具链" section="solutions" columns={3} />

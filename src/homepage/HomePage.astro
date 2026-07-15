@@ -14,40 +14,29 @@ const { entries: statEntries = [] } = await getEmDashCollection('stats', { statu
 const { entries: cardEntries = [] } = await getEmDashCollection('block1', { status: 'published', orderBy: { sort_order: 'asc' } })
   .catch(() => ({ entries: [] }))
 
-/* 超级兼容版：递归查找任何可能的 EmDash 媒体库图片字段 */
+/* 万能递归搜索：自动找到任何 URL 或 storageKey */
 function extractImageUrl(item: any): string {
-  if (!item) return ''
-  if (typeof item === 'string') {
-    if (item.startsWith('http')) return item
-    if (item.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
-      return `/_emdash/api/media/file/${item}`
-    }
-    return ''
-  }
-  if (typeof item !== 'object' || item === null) return ''
+  if (!item || item === null || item === undefined) return ''
+  if (typeof item === 'string') return item
+  if (typeof item !== 'object') return ''
 
   if (item.storageKey) return `/_emdash/api/media/file/${item.storageKey}`
   if (item.meta?.storageKey) return `/_emdash/api/media/file/${item.meta.storageKey}`
 
-  if (typeof item.url === 'string' && item.url) return item.url
-  if (typeof item.src === 'string' && item.src) return item.src
-
-  if (typeof item.url === 'object' && item.url !== null) {
-    if (item.url.storageKey) return `/_emdash/api/media/file/${item.url.storageKey}`
-    if (item.url.meta?.storageKey) return `/_emdash/api/media/file/${item.url.meta.storageKey}`
-    if (typeof item.url.url === 'string') return item.url.url
+  for (const key of ['url', 'src', 'href', 'file', 'path', 'secure_url', 'source']) {
+    const val = item[key]
+    if (typeof val === 'string' && val) return val
+    if (val && typeof val === 'object' && !Array.isArray(val)) {
+      const deep = extractImageUrl(val)
+      if (deep) return deep
+    }
   }
 
-  if (typeof item.file === 'string') return item.file
-  if (item.file?.url) return item.file.url
-  if (item.file?.meta?.storageKey) return `/_emdash/api/media/file/${item.file.meta.storageKey}`
-  if (item.path) return item.path
-  if (item.secure_url) return item.secure_url
-
-  if (Array.isArray(item)) {
-    for (const v of item) {
-      const url = extractImageUrl(v)
-      if (url) return url
+  for (const key of Object.keys(item)) {
+    const val = item[key]
+    if (val && typeof val === 'object') {
+      const deep = extractImageUrl(val)
+      if (deep) return deep
     }
   }
 

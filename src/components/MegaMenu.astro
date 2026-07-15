@@ -32,20 +32,15 @@ for (const l1 of menuItems) {
   }
 }
 
-/* 当前分类完全匹配 */
+/* 完全匹配 */
 function isActive(s: string): boolean {
   return activeCategory === s || (!activeCategory && s === "");
 }
 
-/* 当前分类是该菜单项的子孙节点（用于三级分类高亮父菜单） */
-function hasActiveDescendant(item: MenuItem): boolean {
-  if (item.slug === activeCategory) return true;
-  if (item.children) {
-    for (const c of item.children) {
-      if (hasActiveDescendant(c)) return true;
-    }
-  }
-  return false;
+/* 只检查直接子节点 —— 不递归 */
+function hasDirectActiveChild(item: MenuItem): boolean {
+  if (!item.children) return false;
+  return item.children.some((c) => c.slug === activeCategory);
 }
 ---
 
@@ -56,7 +51,7 @@ function hasActiveDescendant(item: MenuItem): boolean {
     {topItems.map((item) => (
       <div class="cat-item">
         <a href={"/products?category=" + item.slug}
-           class:list={["cat-trigger", { active: isActive(item.slug) || hasActiveDescendant(item) }]}>
+           class:list={["cat-trigger", { active: isActive(item.slug) || hasDirectActiveChild(item) }]}>
           {item.name}
           {(item.children || []).length > 0 && <span class="arrow">▾</span>}
         </a>
@@ -64,7 +59,7 @@ function hasActiveDescendant(item: MenuItem): boolean {
           <div class="cat-drop">
             {item.children.map((child) => (
               <a href={"/products?category=" + child.slug}
-                 class:list={["cat-sub-link", { active: isActive(child.slug) || hasActiveDescendant(child) }]}>
+                 class:list={["cat-sub-link", { active: isActive(child.slug) }]}>
                 {child.name}
               </a>
             ))}

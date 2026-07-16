@@ -19,28 +19,35 @@ function isVisible(item: any): boolean {
   return v === true || v === 1 || v === '1'
 }
 
-/* 兼容多种字段命名变体：img1 / img_1 / img-1 */
-function getField(item: any, key: string, i: number): string {
-  const variants = [`${key}${i}`, `${key}_${i}`, `${key}-${i}`]
-  for (const v of variants) {
-    if (item?.[v]) return String(item[v])
-  }
-  return ''
-}
-
+/* 正则扫描字段名，不依赖固定命名 */
 function extractCardsFromEntry(entry: any): any[] {
   const item = entry.data?.item ?? entry.data ?? entry
+  if (!item) return []
+
+  const findByPattern = (pattern: RegExp): string | null => {
+    for (const key of Object.keys(item)) {
+      if (pattern.test(key) && item[key]) return String(item[key])
+    }
+    return null
+  }
+
   const cards: any[] = []
-  for (let i = 1; i <= 3; i++) {
-    const title = getField(item, 'title', i)
+  for (let i = 1; i <= 5; i++) {
+    const titleRe = new RegExp(`title[_\\-\\s]?${i}$`, 'i')
+    const imgRe = new RegExp(`^img[_\\-\\s]?${i}$`, 'i')
+    const linkRe = new RegExp(`img[_\\-\\s]?url[_\\-\\s]?${i}$`, 'i')
+    const linkRe2 = new RegExp(`img[_\\-\\s]?link[_\\-\\s]?${i}$`, 'i')
+
+    const title = findByPattern(titleRe)
     if (!title) continue
+
     cards.push({
       id: `${entry.id}-${i}`,
       title,
       description: '',
-      image: getField(item, 'img', i),
+      image: findByPattern(imgRe) || '',
       images: [],
-      link: getField(item, 'img_url', i) || '/products',
+      link: findByPattern(linkRe) || findByPattern(linkRe2) || '/products',
       tag: '',
       section: 'solutions',
       sort_order: i,

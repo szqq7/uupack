@@ -19,32 +19,54 @@ function isVisible(item: any): boolean {
   return v === true || v === 1 || v === '1'
 }
 
+/**
+ * 把 EmDash 媒体字段（短文本 URL / 媒体库对象 {url:{meta:{storageKey}}}）统一解析为可访问的图片 URL
+ * - 短文本 URL 字符串 → 原样返回
+ * - 媒体对象（带 meta.storageKey）→ 转成 /_emdash/api/media/file/<key>
+ * - 已经是 /_emdash 路径 → 原样返回
+ */
+function extractImageUrl(raw: any): string {
+  if (!raw) return ''
+  if (typeof raw === 'string') {
+    if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('/')) return raw
+    return raw
+  }
+  if (typeof raw === 'object') {
+    if (raw.meta?.storageKey) return `/_emdash/api/media/file/${raw.meta.storageKey}`
+    if (raw.url) {
+      if (typeof raw.url === 'string') return raw.url
+      if (raw.url?.meta?.storageKey) return `/_emdash/api/media/file/${raw.url.meta.storageKey}`
+      if (raw.url?.url) return raw.url.url
+    }
+  }
+  return ''
+}
+
 function extractCardsFromEntry(entry: any): any[] {
   const item = entry.data?.item ?? entry.data ?? entry
   if (!item || typeof item !== 'object') return []
 
-  const cardIndexes = new Set<number>()
-  for (const key of Object.keys(item)) {
-    const match = key.toLowerCase().match(/^title\D*(\d+)$/)
-    if (match) cardIndexes.add(Number(match[1]))
-  }
-
   const cards: any[] = []
-  for (const idx of Array.from(cardIndexes).sort((a, b) => a - b)) {
-    const title = item[`title${idx}`] || item[`title_${idx}`] || item[`title-${idx}`] || item[`Title${idx}`]
-    if (!title) continue
+  /* 重复器 img_item：[{title, img, link}, ...] */
+  const repeater = item.img_item
+  if (Array.isArray(repeater)) {
+    repeater.forEach((row: any, idx: number) => {
+      if (!row || typeof row !== 'object') return
+      const title = row.title
+      if (!title) return
 
-    cards.push({
-      id: `${entry.id}-${idx}`,
-      title: String(title),
-      description: '',
-      image: String(item[`img${idx}`] || item[`img_${idx}`] || item[`img-${idx}`] || ''),
-      images: [],
-      link: String(item[`img_url${idx}`] || item[`img_url_${idx}`] || item[`img-url${idx}`] || '/products'),
-      tag: '',
-      section: 'solutions',
-      sort_order: idx,
-      is_active: true,
+      cards.push({
+        id: `${entry.id}-${idx + 1}`,
+        title: String(title),
+        description: '',
+        image: extractImageUrl(row.img),
+        images: [],
+        link: String(row.link ?? '/products'),
+        tag: '',
+        section: 'solutions',
+        sort_order: idx + 1,
+        is_active: true,
+      })
     })
   }
   return cards
@@ -54,10 +76,6 @@ const visibleBlocks = hblockEntries.filter((e: any) => {
   const item = e.data?.item ?? e.data ?? e
   return isVisible(item)
 })
-
-/* 一次性调试：列出第一条可见记录的实际字段名 */
-const debugItem = visibleBlocks[0]?.data?.item ?? visibleBlocks[0]?.data ?? visibleBlocks[0]
-const debugKeys = debugItem ? Object.keys(debugItem) : []
 
 const hero = heroEntry ? {
   badge_text: heroEntry.data?.badge_text ?? '',
@@ -100,9 +118,6 @@ const stats = statEntries.length > 0
 ---
 
 <Layout title="EmDash — 智能热转印设备">
-  {debugKeys.length > 0 && (
-    <pre style="background:#000;color:#0f0;padding:1rem;margin:0.5rem;font-size:10px;font-family:monospace;white-space:pre-wrap;border-radius:4px;overflow:auto;max-height:200px;">{JSON.stringify(debugKeys, null, 2)}</pre>
-  )}
   <HeroBanner hero={hero} />
 
   {visibleBlocks.map((entry: any) => {

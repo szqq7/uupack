@@ -19,38 +19,33 @@ function isVisible(item: any): boolean {
   return v === true || v === 1 || v === '1'
 }
 
-/* 正则扫描字段名，不依赖固定命名 */
+/* 扫描 item 中所有以 title 开头的字段（如 title1, title_1, Title1 等） */
 function extractCardsFromEntry(entry: any): any[] {
   const item = entry.data?.item ?? entry.data ?? entry
-  if (!item) return []
+  if (!item || typeof item !== 'object') return []
 
-  const findByPattern = (pattern: RegExp): string | null => {
-    for (const key of Object.keys(item)) {
-      if (pattern.test(key) && item[key]) return String(item[key])
-    }
-    return null
+  const cardIndexes = new Set<number>()
+  for (const key of Object.keys(item)) {
+    const k = key.toLowerCase()
+    const match = k.match(/^title\D*(\d+)$/)
+    if (match) cardIndexes.add(Number(match[1]))
   }
 
   const cards: any[] = []
-  for (let i = 1; i <= 5; i++) {
-    const titleRe = new RegExp(`title[_\\-\\s]?${i}$`, 'i')
-    const imgRe = new RegExp(`^img[_\\-\\s]?${i}$`, 'i')
-    const linkRe = new RegExp(`img[_\\-\\s]?url[_\\-\\s]?${i}$`, 'i')
-    const linkRe2 = new RegExp(`img[_\\-\\s]?link[_\\-\\s]?${i}$`, 'i')
-
-    const title = findByPattern(titleRe)
+  for (const idx of Array.from(cardIndexes).sort((a, b) => a - b)) {
+    const title = item[`title${idx}`] || item[`title_${idx}`] || item[`title-${idx}`] || item[`Title${idx}`]
     if (!title) continue
 
     cards.push({
-      id: `${entry.id}-${i}`,
-      title,
+      id: `${entry.id}-${idx}`,
+      title: String(title),
       description: '',
-      image: findByPattern(imgRe) || '',
+      image: String(item[`img${idx}`] || item[`img_${idx}`] || item[`img-${idx}`] || ''),
       images: [],
-      link: findByPattern(linkRe) || findByPattern(linkRe2) || '/products',
+      link: String(item[`img_url${idx}`] || item[`img_url_${idx}`] || item[`img-url${idx}`] || item[`img${idx}_url`] || '/products'),
       tag: '',
       section: 'solutions',
-      sort_order: i,
+      sort_order: idx,
       is_active: true,
     })
   }

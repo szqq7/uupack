@@ -19,15 +19,13 @@ function isVisible(item: any): boolean {
   return v === true || v === 1 || v === '1'
 }
 
-/* 扫描 item 中所有以 title 开头的字段（如 title1, title_1, Title1 等） */
 function extractCardsFromEntry(entry: any): any[] {
   const item = entry.data?.item ?? entry.data ?? entry
   if (!item || typeof item !== 'object') return []
 
   const cardIndexes = new Set<number>()
   for (const key of Object.keys(item)) {
-    const k = key.toLowerCase()
-    const match = k.match(/^title\D*(\d+)$/)
+    const match = key.toLowerCase().match(/^title\D*(\d+)$/)
     if (match) cardIndexes.add(Number(match[1]))
   }
 
@@ -42,7 +40,7 @@ function extractCardsFromEntry(entry: any): any[] {
       description: '',
       image: String(item[`img${idx}`] || item[`img_${idx}`] || item[`img-${idx}`] || ''),
       images: [],
-      link: String(item[`img_url${idx}`] || item[`img_url_${idx}`] || item[`img-url${idx}`] || item[`img${idx}_url`] || '/products'),
+      link: String(item[`img_url${idx}`] || item[`img_url_${idx}`] || item[`img-url${idx}`] || '/products'),
       tag: '',
       section: 'solutions',
       sort_order: idx,
@@ -56,6 +54,12 @@ const visibleBlocks = hblockEntries.filter((e: any) => {
   const item = e.data?.item ?? e.data ?? e
   return isVisible(item)
 })
+
+{/* 一次性调试：列出第一条可见记录的实际字段名 */}
+{visibleBlocks[0] && (() => {
+  const item = visibleBlocks[0].data?.item ?? visibleBlocks[0].data ?? visibleBlocks[0]
+  return <pre style="background:#000;color:#0f0;padding:1rem;margin:0.5rem;font-size:10px;font-family:monospace;white-space:pre-wrap;border-radius:4px;overflow:auto;max-height:200px;">{JSON.stringify(Object.keys(item), null, 2)}</pre>
+})()}
 
 const hero = heroEntry ? {
   badge_text: heroEntry.data?.badge_text ?? '',

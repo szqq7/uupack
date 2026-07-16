@@ -14,8 +14,13 @@ const { entries: statEntries = [] } = await getEmDashCollection('stats', { statu
 const { entries: hblockEntries = [] } = await getEmDashCollection('hblock', { status: 'published', orderBy: { sort_order: 'asc' } })
   .catch(() => ({ entries: [] }))
 
+function isVisible(item: any): boolean {
+  const v = item?.is_visible
+  return v === true || v === 1 || v === '1'
+}
+
 function extractCardsFromEntry(entry: any): any[] {
-  const item = entry.data ?? entry
+  const item = entry.data?.item ?? entry.data ?? entry
   const cards: any[] = []
   for (let i = 1; i <= 3; i++) {
     const title = item[`title${i}`]
@@ -29,36 +34,18 @@ function extractCardsFromEntry(entry: any): any[] {
       link: item[`img_url${i}`] ?? '/products',
       tag: '',
       section: 'solutions',
-      sort_order: item?.sort_order ?? 0,
+      sort_order: i,
       is_active: true,
     })
   }
   return cards
 }
 
-/* 判断记录是否可见 */
-function isVisible(item: any): boolean {
-  const v = item?.is_visible
-  return v === true || v === 1 || v === '1'
-}
-
-/* 标题从第一个可见记录取 */
-const firstVisible = hblockEntries.find((e: any) => {
-  const entryData = e.data?.item ?? e.data ?? e
-  return isVisible(entryData)
+/* 每个可见的 hblock 记录 = 一个独立区块 */
+const visibleBlocks = hblockEntries.filter((e: any) => {
+  const item = e.data?.item ?? e.data ?? e
+  return isVisible(item)
 })
-const titleData = firstVisible?.data?.item ?? firstVisible?.data ?? firstVisible ?? {}
-const sectionTitle = titleData?.headline ?? '一站式创意解决方案'
-const sectionSubtitle = titleData?.subheadline ?? '从设备到耗材，提供完整的热转印创作工具链'
-
-/* 卡片只取可见记录 */
-const allCards = hblockEntries
-  .filter((e: any) => {
-    const item = e.data ?? e
-    return isVisible(item)
-  })
-  .flatMap(extractCardsFromEntry)
-const cards = allCards.slice(0, 3)
 
 const hero = heroEntry ? {
   badge_text: heroEntry.data?.badge_text ?? '',
@@ -102,9 +89,24 @@ const stats = statEntries.length > 0
 
 <Layout title="EmDash — 智能热转印设备">
   <HeroBanner hero={hero} />
-  <div style="background:#fff;">
-    <ProductGrid products={cards} title={sectionTitle} subtitle={sectionSubtitle} section="solutions" columns={3} />
-  </div>
+
+  {/* 每个 hblock 记录 = 一个独立区块（按 sort_order 排序） */}
+  {visibleBlocks.map((entry: any) => {
+    const item = entry.data?.item ?? entry.data ?? entry
+    const cards = extractCardsFromEntry(entry)
+    return (
+      <div style="background:#fff;">
+        <ProductGrid
+          products={cards}
+          title={item?.headline ?? '区块'}
+          subtitle={item?.subheadline ?? ''}
+          section={`solutions-${entry.id}`}
+          columns={3}
+        />
+      </div>
+    )
+  })}
+
   <StatsSection stats={stats} />
   <div class="newsletter">
     <div class="newsletter-inner">

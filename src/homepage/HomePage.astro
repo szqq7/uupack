@@ -19,19 +19,28 @@ function isVisible(item: any): boolean {
   return v === true || v === 1 || v === '1'
 }
 
+/* 兼容多种字段命名变体：img1 / img_1 / img-1 */
+function getField(item: any, key: string, i: number): string {
+  const variants = [`${key}${i}`, `${key}_${i}`, `${key}-${i}`]
+  for (const v of variants) {
+    if (item?.[v]) return String(item[v])
+  }
+  return ''
+}
+
 function extractCardsFromEntry(entry: any): any[] {
   const item = entry.data?.item ?? entry.data ?? entry
   const cards: any[] = []
   for (let i = 1; i <= 3; i++) {
-    const title = item[`title${i}`]
+    const title = getField(item, 'title', i)
     if (!title) continue
     cards.push({
       id: `${entry.id}-${i}`,
       title,
       description: '',
-      image: item[`img${i}`] ?? '',
+      image: getField(item, 'img', i),
       images: [],
-      link: item[`img_url${i}`] ?? '/products',
+      link: getField(item, 'img_url', i) || '/products',
       tag: '',
       section: 'solutions',
       sort_order: i,
@@ -41,7 +50,6 @@ function extractCardsFromEntry(entry: any): any[] {
   return cards
 }
 
-/* 每个可见的 hblock 记录 = 一个独立区块 */
 const visibleBlocks = hblockEntries.filter((e: any) => {
   const item = e.data?.item ?? e.data ?? e
   return isVisible(item)
@@ -90,7 +98,6 @@ const stats = statEntries.length > 0
 <Layout title="EmDash — 智能热转印设备">
   <HeroBanner hero={hero} />
 
-  {/* 每个 hblock 记录 = 一个独立区块（按 sort_order 排序） */}
   {visibleBlocks.map((entry: any) => {
     const item = entry.data?.item ?? entry.data ?? entry
     const cards = extractCardsFromEntry(entry)

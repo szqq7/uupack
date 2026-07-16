@@ -55,11 +55,9 @@ const visibleBlocks = hblockEntries.filter((e: any) => {
   return isVisible(item)
 })
 
-{/* 一次性调试：列出第一条可见记录的实际字段名 */}
-{visibleBlocks[0] && (() => {
-  const item = visibleBlocks[0].data?.item ?? visibleBlocks[0].data ?? visibleBlocks[0]
-  return <pre style="background:#000;color:#0f0;padding:1rem;margin:0.5rem;font-size:10px;font-family:monospace;white-space:pre-wrap;border-radius:4px;overflow:auto;max-height:200px;">{JSON.stringify(Object.keys(item), null, 2)}</pre>
-})()}
+/* 一次性调试：列出第一条可见记录的实际字段名 */
+const debugItem = visibleBlocks[0]?.data?.item ?? visibleBlocks[0]?.data ?? visibleBlocks[0]
+const debugKeys = debugItem ? Object.keys(debugItem) : []
 
 const hero = heroEntry ? {
   badge_text: heroEntry.data?.badge_text ?? '',
@@ -102,6 +100,9 @@ const stats = statEntries.length > 0
 ---
 
 <Layout title="EmDash — 智能热转印设备">
+  {debugKeys.length > 0 && (
+    <pre style="background:#000;color:#0f0;padding:1rem;margin:0.5rem;font-size:10px;font-family:monospace;white-space:pre-wrap;border-radius:4px;overflow:auto;max-height:200px;">{JSON.stringify(debugKeys, null, 2)}</pre>
+  )}
   <HeroBanner hero={hero} />
 
   {visibleBlocks.map((entry: any) => {

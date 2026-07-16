@@ -11,7 +11,6 @@ const { entry: heroEntry = null } = await getEmDashEntry('hero', 'home')
 const { entries: statEntries = [] } = await getEmDashCollection('stats', { status: 'published' })
   .catch(() => ({ entries: [] }))
 
-/* Hblock：先按 sort_order 排序，提取后过滤 is_visible=false 的 */
 const { entries: hblockEntries = [] } = await getEmDashCollection('hblock', { status: 'published', orderBy: { sort_order: 'asc' } })
   .catch(() => ({ entries: [] }))
 
@@ -37,16 +36,26 @@ function extractCardsFromEntry(entry: any): any[] {
   return cards
 }
 
-const firstItem = hblockEntries[0]?.data ?? hblockEntries[0] ?? {}
-const sectionTitle = firstItem?.headline ?? '一站式创意解决方案'
-const sectionSubtitle = firstItem?.subheadline ?? '从设备到耗材，提供完整的热转印创作工具链'
+/* 判断记录是否可见 */
+function isVisible(item: any): boolean {
+  const v = item?.is_visible
+  return v === true || v === 1 || v === '1'
+}
 
-/* ── 关键改动：过滤 is_visible=false 的记录 ── */
+/* 标题从第一个可见记录取 */
+const firstVisible = hblockEntries.find((e: any) => {
+  const entryData = e.data?.item ?? e.data ?? e
+  return isVisible(entryData)
+})
+const titleData = firstVisible?.data?.item ?? firstVisible?.data ?? firstVisible ?? {}
+const sectionTitle = titleData?.headline ?? '一站式创意解决方案'
+const sectionSubtitle = titleData?.subheadline ?? '从设备到耗材，提供完整的热转印创作工具链'
+
+/* 卡片只取可见记录 */
 const allCards = hblockEntries
   .filter((e: any) => {
     const item = e.data ?? e
-   return item?.is_visible === true || item?.is_visible === 1
-
+    return isVisible(item)
   })
   .flatMap(extractCardsFromEntry)
 const cards = allCards.slice(0, 3)

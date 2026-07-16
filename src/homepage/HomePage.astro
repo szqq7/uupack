@@ -42,7 +42,7 @@ function extractImageUrl(raw: any): string {
   return ''
 }
 
-function extractCardsFromEntry(entry: any): any[] {
+function extractCardsFromEntry(entry: any, sectionPrefix: string = 'solutions'): any[] {
   const item = entry.data?.item ?? entry.data ?? entry
   if (!item || typeof item !== 'object') return []
 
@@ -63,7 +63,7 @@ function extractCardsFromEntry(entry: any): any[] {
         images: [],
         link: String(row.link ?? '/products'),
         tag: '',
-        section: 'solutions',
+        section: sectionPrefix,
         sort_order: idx + 1,
         is_active: true,
       })
@@ -122,7 +122,8 @@ const stats = statEntries.length > 0
 
   {visibleBlocks.map((entry: any) => {
     const item = entry.data?.item ?? entry.data ?? entry
-    const cards = extractCardsFromEntry(entry)
+    const sectionKey = `solutions-${entry.id}`
+    const cards = extractCardsFromEntry(entry, sectionKey)
     return (
       <div style="background:#fff;">
         <ProductGrid

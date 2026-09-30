@@ -10,6 +10,13 @@
 			"database_name": "uupack","database_id": "56baf2eb-b533-4355-b4f7-6168a48360d0",
 		},
 	],
+	"kv_namespaces": [
+		{
+			// EmDash 1.0.1 分布式对象缓存（替代 1.0.1 中已移除的 cloudflareCache）
+			"binding": "CACHE_KV",
+			"id": "1edc35fd8deb4c43972c6904011efe42",
+		},
+	],
 	"r2_buckets": [
 		{
 			"binding": "MEDIA",
